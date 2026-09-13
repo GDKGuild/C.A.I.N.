@@ -1,0 +1,11 @@
+// do not use .env in git
+.env
+.env.*
+data/*.db
+data/*.db-*
+data.sqlite
+data.sqlite-*
+dist/
+node_modules/
+log.txt
+.mcp-backups/
