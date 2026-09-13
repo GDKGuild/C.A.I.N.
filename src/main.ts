@@ -22,9 +22,9 @@ client.on('interactionCreate', (interaction) => {
 
 void (async () => {
   try {
-    await registerCommands(client);
     await client.login(TOKEN);
     console.log(`Logged in as ${client.user?.tag}`);
+    await registerCommands(client);
   } catch (e) {
     console.error('Failed to start bot:', e);
     process.exit(1);

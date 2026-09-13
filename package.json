@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/main.js",
+    "register": "node dist/register-commands.js",
     "dev": "tsx watch src/main.ts",
     "test": "vitest run"
   },

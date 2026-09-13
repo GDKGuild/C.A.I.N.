@@ -9,3 +9,6 @@ dist/
 node_modules/
 log.txt
 .mcp-backups/
+bot.log
+bot.err
+bot.pid

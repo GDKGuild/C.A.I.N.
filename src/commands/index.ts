@@ -10,7 +10,7 @@ export interface Command {
   handler: (client: Client, interaction: ChatInputCommandInteraction) => Promise<void>;
 }
 
-export async function registerCommands(client: Client): Promise<void> {
+export function getCommands(): Command[] {
   const commands: Command[] = [];
 
   if (config.about_command) {
@@ -28,15 +28,21 @@ export async function registerCommands(client: Client): Promise<void> {
     handler: settingsCommand,
   });
 
-  if (!client.application?.id) return;
-  const rest = new REST().setToken(TOKEN);
-  await rest.put(Routes.applicationCommands(client.application.id), {
-    body: commands.map((c) => c.builder.toJSON()),
-  });
+  return commands;
+}
+
+export async function registerCommands(client: Client): Promise<void> {
+  const commands = getCommands();
 
   client.on('interactionCreate', (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     const command = commands.find((c) => c.builder.name === interaction.commandName);
     if (command) void command.handler(client, interaction);
+  });
+
+  if (!client.application?.id) return;
+  const rest = new REST().setToken(TOKEN);
+  await rest.put(Routes.applicationCommands(client.application.id), {
+    body: commands.map((c) => c.builder.toJSON()),
   });
 }
