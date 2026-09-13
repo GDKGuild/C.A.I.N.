@@ -366,21 +366,18 @@ abstract class WebsiteBaseSetting extends BaseSetting {
   buildLangModal(): ModalBuilder {
     const lang = this.guild.lang;
     const interactionLang = this.interaction.locale.split('-')[0];
+    const langInput = new TextInputBuilder()
+      .setCustomId('lang')
+      .setLabel(t('settings.lang_modal.label'))
+      .setPlaceholder(t('settings.lang_modal.placeholder', { lang_iso: interactionLang }))
+      .setMinLength(1)
+      .setMaxLength(2)
+      .setStyle(TextInputStyle.Short);
+    if (lang) langInput.setValue(lang);
     return new ModalBuilder()
       .setCustomId('lang_modal')
       .setTitle(t('settings.lang_modal.title'))
-      .addComponents(
-        new ActionRowBuilder<TextInputBuilder>().addComponents(
-          new TextInputBuilder()
-            .setCustomId('lang')
-            .setLabel(t('settings.lang_modal.label'))
-            .setPlaceholder(t('settings.lang_modal.placeholder', { lang_iso: interactionLang }))
-            .setValue(lang ?? '')
-            .setMinLength(1)
-            .setMaxLength(2)
-            .setStyle(TextInputStyle.Short),
-        ),
-      );
+      .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(langInput));
   }
 
   async submitLangModal(setting: WebsiteBaseSetting, interaction: Interactive): Promise<void> {
@@ -988,22 +985,19 @@ class KeywordsSetting extends BaseSetting {
     const values = this.keywords;
     const handler = new KeywordModalHandler(index, this);
     this.view.register('keyword_modal', (i) => handler.onSubmit(i));
+    const valueInput = new TextInputBuilder()
+      .setCustomId('value')
+      .setLabel(t('settings.keywords.modal.value.label'))
+      .setPlaceholder(t('settings.keywords.modal.value.placeholder'))
+      .setMinLength(1)
+      .setMaxLength(50)
+      .setStyle(TextInputStyle.Short);
+    if (keywordIndex !== null) valueInput.setValue(values[keywordIndex]);
     await interaction.showModal(
       new ModalBuilder()
         .setCustomId('keyword_modal')
         .setTitle(t('settings.keywords.modal.title'))
-        .addComponents(
-          new ActionRowBuilder<any>().addComponents(
-            new TextInputBuilder()
-              .setCustomId('value')
-              .setLabel(t('settings.keywords.modal.value.label'))
-              .setPlaceholder(t('settings.keywords.modal.value.placeholder'))
-              .setValue(keywordIndex !== null ? values[keywordIndex] : '')
-              .setMinLength(1)
-              .setMaxLength(50)
-              .setStyle(TextInputStyle.Short),
-          ),
-        ),
+        .addComponents(new ActionRowBuilder<any>().addComponents(valueInput)),
     );
   }
 
@@ -1542,41 +1536,38 @@ class CustomWebsitesSetting extends BaseSetting {
     await this.view.resetTimeout(interaction);
     const website = interaction.customId === 'edit_website' ? this.selected : null;
     this.view.register('custom_website_modal', (i) => new CustomWebsiteModalHandler(website, this).onSubmit(i));
-    const name = website?.name ?? '';
-    const domain = website?.domain ?? '';
-    const fixDomain = website?.fix_domain ?? '';
+    const name = website?.name;
+    const domain = website?.domain;
+    const fixDomain = website?.fix_domain;
+    const nameInput = new TextInputBuilder()
+      .setCustomId('name')
+      .setLabel(t('settings.custom_websites.modal.name.label'))
+      .setPlaceholder(t('settings.custom_websites.modal.name.placeholder'))
+      .setMaxLength(36)
+      .setStyle(TextInputStyle.Short);
+    const domainInput = new TextInputBuilder()
+      .setCustomId('domain')
+      .setLabel(t('settings.custom_websites.modal.domain.label'))
+      .setPlaceholder(t('settings.custom_websites.modal.domain.placeholder'))
+      .setMaxLength(61)
+      .setStyle(TextInputStyle.Short);
+    const fixDomainInput = new TextInputBuilder()
+      .setCustomId('fix_domain')
+      .setLabel(t('settings.custom_websites.modal.fix_domain.label'))
+      .setPlaceholder(t('settings.custom_websites.modal.fix_domain.placeholder'))
+      .setMaxLength(61)
+      .setStyle(TextInputStyle.Short);
+    if (name !== undefined) nameInput.setValue(name);
+    if (domain !== undefined) domainInput.setValue(domain);
+    if (fixDomain !== undefined) fixDomainInput.setValue(fixDomain);
     await interaction.showModal(
       new ModalBuilder()
         .setCustomId('custom_website_modal')
         .setTitle(t('settings.custom_websites.modal.title'))
         .addComponents(
-          new ActionRowBuilder<any>().addComponents(
-            new TextInputBuilder()
-              .setCustomId('name')
-              .setLabel(t('settings.custom_websites.modal.name.label'))
-              .setPlaceholder(t('settings.custom_websites.modal.name.placeholder'))
-              .setValue(name)
-              .setMaxLength(36)
-              .setStyle(TextInputStyle.Short),
-          ),
-          new ActionRowBuilder<any>().addComponents(
-            new TextInputBuilder()
-              .setCustomId('domain')
-              .setLabel(t('settings.custom_websites.modal.domain.label'))
-              .setPlaceholder(t('settings.custom_websites.modal.domain.placeholder'))
-              .setValue(domain)
-              .setMaxLength(61)
-              .setStyle(TextInputStyle.Short),
-          ),
-          new ActionRowBuilder<any>().addComponents(
-            new TextInputBuilder()
-              .setCustomId('fix_domain')
-              .setLabel(t('settings.custom_websites.modal.fix_domain.label'))
-              .setPlaceholder(t('settings.custom_websites.modal.fix_domain.placeholder'))
-              .setValue(fixDomain)
-              .setMaxLength(61)
-              .setStyle(TextInputStyle.Short),
-          ),
+          new ActionRowBuilder<any>().addComponents(nameInput),
+          new ActionRowBuilder<any>().addComponents(domainInput),
+          new ActionRowBuilder<any>().addComponents(fixDomainInput),
         ),
     );
   }
