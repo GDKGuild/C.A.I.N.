@@ -10,8 +10,10 @@ import {
   Guild as DiscordGuild,
   GuildChannel,
   GuildMember,
+  MentionableSelectMenuBuilder,
   MessageActionRowComponentBuilder,
   MessageComponentInteraction,
+  MessageFlags,
   ModalBuilder,
   ModalSubmitInteraction,
   Role,
@@ -56,12 +58,32 @@ interface RowItem {
   row?: number;
 }
 
+const WIDE_COMPONENTS = new Set([
+  StringSelectMenuBuilder.name,
+  ChannelSelectMenuBuilder.name,
+  UserSelectMenuBuilder.name,
+  RoleSelectMenuBuilder.name,
+  MentionableSelectMenuBuilder.name,
+]);
+
+function componentWidth(builder: MessageActionRowComponentBuilder): number {
+  return WIDE_COMPONENTS.has(builder.constructor.name) ? 5 : 1;
+}
+
 export function packRows(items: RowItem[]): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
   const rows: MessageActionRowComponentBuilder[][] = [];
+  const usedWidth: number[] = [];
   for (const item of items) {
-    let idx = item.row !== undefined ? Math.min(4, Math.max(0, item.row)) : rows.findIndex((r) => r.length < 5);
+    const width = componentWidth(item.builder);
+    let idx = item.row !== undefined
+      ? Math.min(4, Math.max(0, item.row))
+      : rows.findIndex((r, i) => (usedWidth[i] ?? 0) + width <= 5);
     if (idx === -1) idx = rows.length;
-    while (rows.length <= idx) rows.push([]);
+    while (rows.length <= idx) {
+      rows.push([]);
+      usedWidth.push(0);
+    }
+    usedWidth[idx] = (usedWidth[idx] ?? 0) + width;
     rows[idx].push(item.builder);
   }
   return rows.filter((r) => r.length > 0).map((r) => new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(r));
@@ -370,7 +392,7 @@ abstract class WebsiteBaseSetting extends BaseSetting {
           invalid_lang: lang,
           lang_iso: interaction.locale.split('-')[0],
         }),
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -553,7 +575,10 @@ class TroubleshootingSetting extends BaseSetting {
   async selectChannelAction(interaction: Interactive): Promise<void> {
     if (!interaction.isMessageComponent() || !interaction.isChannelSelectMenu()) return;
     const channel = interaction.channels.first();
-    if (!channel) return;
+    if (!channel) {
+      await interaction.deferUpdate().catch(() => {});
+      return;
+    }
     this.ctx.channel.replace(channel as GuildChannel | ThreadChannel);
     await this.view.refresh(interaction);
   }
@@ -561,7 +586,10 @@ class TroubleshootingSetting extends BaseSetting {
   async selectMemberAction(interaction: Interactive): Promise<void> {
     if (!interaction.isMessageComponent() || !interaction.isUserSelectMenu()) return;
     const member = interaction.members.first() as GuildMember | undefined;
-    if (!member) return;
+    if (!member) {
+      await interaction.deferUpdate().catch(() => {});
+      return;
+    }
     this.ctx.member.replace(member);
     this.ctx.roles.length = 0;
     for (const r of member.roles.cache.values()) {
@@ -676,7 +704,7 @@ abstract class GenericFilterSetting extends BaseSetting {
 
   async selectElement(interaction: Interactive): Promise<void> {
     if (!interaction.isMessageComponent()) return;
-    void this.selectElementValue(interaction);
+    await this.selectElementValue(interaction);
   }
 
   protected async selectElementValue(interaction: MessageComponentInteraction): Promise<void> {
@@ -720,7 +748,10 @@ class ChannelSetting extends GenericFilterSetting {
   protected async selectElementValue(interaction: MessageComponentInteraction): Promise<void> {
     if (!interaction.isChannelSelectMenu()) return;
     const channel = interaction.channels.first();
-    if (!channel) return;
+    if (!channel) {
+      await interaction.deferUpdate().catch(() => {});
+      return;
+    }
     this.element.replace(channel as GuildChannel | ThreadChannel);
     this.enabled = this.element.enabled(this.guild);
     await this.view.refresh(interaction);
@@ -746,7 +777,10 @@ class MemberSetting extends GenericFilterSetting {
   protected async selectElementValue(interaction: MessageComponentInteraction): Promise<void> {
     if (!interaction.isUserSelectMenu()) return;
     const member = interaction.members.first() as GuildMember | undefined;
-    if (!member) return;
+    if (!member) {
+      await interaction.deferUpdate().catch(() => {});
+      return;
+    }
     this.element.replace(member);
     this.enabled = this.element.enabled(this.guild);
     this.ctx.roles.length = 0;
@@ -838,13 +872,13 @@ class KeywordModalHandler {
     if (value.length > 50) {
       await interaction.reply({
         content: t('settings.keywords.modal.error.length', { max: 50 }),
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
     if (values.includes(value) && (this.keywordIndex === null || 0 !== this.keywordIndex)) {
-      await interaction.reply({ content: t('settings.keywords.modal.error.exists'), ephemeral: true });
+      await interaction.reply({ content: t('settings.keywords.modal.error.exists'), flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -1399,23 +1433,23 @@ class CustomWebsiteModalHandler {
     fixDomain = cleanDomain(fixDomain);
 
     if (!domain || !fixDomain) {
-      await interaction.reply({ content: t('settings.custom_websites.modal.error.length'), ephemeral: true });
+      await interaction.reply({ content: t('settings.custom_websites.modal.error.length'), flags: MessageFlags.Ephemeral });
       return;
     }
 
     const existing = CustomWebsite.findAllByGuild(interaction.guildId!).find((w) => w.domain === domain);
     if (existing && (!this.website || existing.id !== this.website.id)) {
-      await interaction.reply({ content: t('settings.custom_websites.modal.error.exists'), ephemeral: true });
+      await interaction.reply({ content: t('settings.custom_websites.modal.error.exists'), flags: MessageFlags.Ephemeral });
       return;
     }
 
     if (name.length > 36) {
-      await interaction.reply({ content: t('settings.custom_websites.modal.error.length_name', { max: 36 }), ephemeral: true });
+      await interaction.reply({ content: t('settings.custom_websites.modal.error.length_name', { max: 36 }), flags: MessageFlags.Ephemeral });
       return;
     }
 
     if (domain.length > 61) {
-      await interaction.reply({ content: t('settings.custom_websites.modal.error.length_domain', { max: 61 }), ephemeral: true });
+      await interaction.reply({ content: t('settings.custom_websites.modal.error.length_domain', { max: 61 }), flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -1686,6 +1720,9 @@ export class SettingsView {
   }
 
   async build(): Promise<void> {
+    await this.ctx.guild.discordObject.members
+      .fetch({ user: this.bot.user!.id, force: true })
+      .catch(() => {});
     this.callbacks.clear();
     const items: Array<RowItem> = [];
     if (this.selected_id !== null && this.settings[this.selected_id]) {
@@ -1722,21 +1759,38 @@ export class SettingsView {
   }
 
   async refresh(interaction: ChatInputCommandInteraction | Interactive): Promise<void> {
-    await this.build();
+    const isInitial = !interaction.isMessageComponent() && !interaction.isModalSubmit();
+    if (isInitial) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
+    }
+    let payload: { embeds: EmbedBuilder[]; components: ActionRowBuilder<MessageActionRowComponentBuilder>[] } | null = null;
+    try {
+      await this.build();
+      payload = { embeds: [this.embed!], components: this.rows };
+    } catch (e) {
+      console.error('settings view build error:', e);
+    }
     try {
       if (interaction.isModalSubmit()) {
-        if (interaction.isFromMessage()) {
-          await interaction.update({ embeds: [this.embed!], components: this.rows });
+        if (interaction.isFromMessage() && payload) {
+          await interaction.update(payload);
         }
       } else if (interaction.isMessageComponent()) {
-        await interaction.update({ embeds: [this.embed!], components: this.rows });
+        if (payload) {
+          await interaction.update(payload);
+        } else {
+          await interaction.deferUpdate();
+        }
       } else {
         this.isActive = true;
         activeViews.set(this.key, this);
-        await interaction.reply({ embeds: [this.embed!], components: this.rows, ephemeral: true });
+        await interaction.editReply(payload ?? { content: t('settings.error') });
       }
-    } catch {
-      // unknown interaction or deleted message - ignore
+    } catch (e) {
+      console.error('settings view send error:', e);
+      if (interaction.isMessageComponent()) {
+        await interaction.deferUpdate().catch(() => {});
+      }
     }
     this.resetTimeout(interaction);
   }
@@ -1763,13 +1817,20 @@ function viewKey(interaction: ChatInputCommandInteraction | Interactive): string
 
 export async function handleSettingsInteraction(interaction: Interactive): Promise<void> {
   const view = activeViews.get(viewKey(interaction));
-  if (!view) return;
+  if (!view) {
+    if (interaction.isMessageComponent()) await interaction.deferUpdate().catch(() => {});
+    return;
+  }
   const callback = view.callbacks.get(interaction.customId);
-  if (!callback) return;
+  if (!callback) {
+    if (interaction.isMessageComponent()) await interaction.deferUpdate().catch(() => {});
+    return;
+  }
   try {
     await callback(interaction);
   } catch (e) {
     console.error('settings view error:', e);
+    if (interaction.isMessageComponent()) await interaction.deferUpdate().catch(() => {});
   }
 }
 

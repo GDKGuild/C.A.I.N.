@@ -18,6 +18,7 @@
   "settings.title": "Paramètres",
   "settings.description": "Sélectionnez un paramètre pour voir ses détails",
   "settings.placeholder": "Sélectionnez un paramètre",
+  "settings.error": "Une erreur inattendue est survenue lors du rendu de cette vue.",
   "settings.perms.scope": " dans %{scope}",
   "settings.perms.label": "\n\nPermissions dans %{channel} :\n",
   "settings.perms.missing_label": "\n\n**Permissions manquantes :**\n",
