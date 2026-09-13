@@ -91,7 +91,7 @@ export function groupJoin(strings: Array<string>, maxGroupSize: number, sep = '\
 }
 
 export function setEmbedFooter(client: Client, embed: EmbedBuilder): void {
-  embed.setFooter({ text: `${client.user?.username ?? 'FixTweet'} v${VERSION}` });
+  embed.setFooter({ text: `${client.user?.username ?? 'C.A.I.N.'} v${VERSION}` });
 }
 
 export interface SafeSendOptions {

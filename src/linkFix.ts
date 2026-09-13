@@ -137,7 +137,7 @@ export async function getOrCreateWebhook(channel: GuildChannel, client: Client):
   if (existing) return existing;
 
   const [ok2, created] = await safeSend(
-    webhookChannel.createWebhook({ name: client.user?.displayName ?? 'FixTweetBot' }),
+    webhookChannel.createWebhook({ name: client.user?.displayName ?? 'C.A.I.N.' }),
     { forbidden: true },
   );
   return ok2 && created ? created : null;
