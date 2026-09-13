@@ -1,5 +1,5 @@
 {
-  "description": "This bot automatically repost x.com and twitter.com posts as fxtwitter ones.",
+  "description": "C.A.I.N., the Content And Image Normalizer — a Discord bot that fixes broken social media embeds.",
   "version": "3.3.8",
   "color": 1940464,
   "about_command": true,
@@ -38,6 +38,6 @@
   },
   "invite_link": "https://discord.com/oauth2/authorize?client_id={id}",
   "translation_link": "https://crowdin.com/project/fixtweetbot",
-  "repo_link": "https://github.com/Kyrela/FixTweetBot",
+  "repo_link": "https://github.com/GDKGuild/C.A.I.N.",
   "support_link": "https://discord.gg/3ej9JrkF3U"
 }
