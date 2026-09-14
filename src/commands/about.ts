@@ -27,7 +27,7 @@ export async function aboutCommand(client: Client, interaction: ChatInputCommand
       name: t('about.help.name', {}, locale),
       value: t(
         'about.help.value',
-        { settings_command: settingsCmd, support_link: LINKS.support, troubleshooting_section: t('settings.troubleshooting.name', {}, locale) },
+        { settings_command: settingsCmd, troubleshooting_section: t('settings.troubleshooting.name', {}, locale) },
         locale,
       ),
       inline: false,
@@ -39,9 +39,8 @@ export async function aboutCommand(client: Client, interaction: ChatInputCommand
         {
           invite_link: LINKS.invite.replace('{id}', client.user?.id ?? ''),
           repo_link: LINKS.repo,
-          translation_link: LINKS.translation,
+          original_link: LINKS.original,
           credits_link: LINKS.credits,
-          support_link: LINKS.support,
         },
         locale,
       ),
@@ -62,9 +61,9 @@ export async function aboutCommand(client: Client, interaction: ChatInputCommand
       .setEmoji(EMOJI.add),
     new ButtonBuilder()
       .setStyle(ButtonStyle.Link)
-      .setLabel(t('about.support', {}, locale))
-      .setURL(LINKS.support)
-      .setEmoji(EMOJI.discord),
+      .setLabel(t('about.original', {}, locale))
+      .setURL(LINKS.original)
+      .setEmoji(EMOJI.github),
   );
 
   try {
