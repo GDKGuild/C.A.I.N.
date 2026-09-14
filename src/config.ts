@@ -9,7 +9,7 @@ export const EMOJI: Record<string, string> = config.emoji;
 export const LINKS: Record<string, string> = {
   invite: config.invite_link,
   repo: config.repo_link,
-  translation: config.translation_link,
+  original: config.original_link,
   support: config.support_link,
   credits: config.repo_link + '/blob/v' + VERSION + '/README.md#credits',
 };

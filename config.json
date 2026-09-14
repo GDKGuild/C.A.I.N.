@@ -37,7 +37,7 @@
     "role": "\ud83c\udfad"
   },
   "invite_link": "https://discord.com/oauth2/authorize?client_id={id}",
-  "translation_link": "https://crowdin.com/project/fixtweetbot",
+  "original_link": "https://github.com/Kyrela/FixTweetBot",
   "repo_link": "https://github.com/GDKGuild/C.A.I.N.",
   "support_link": "https://discord.gg/3ej9JrkF3U"
 }
