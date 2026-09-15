@@ -9,8 +9,9 @@ process.env.DB_PATH = dbPath;
 let insertGuild: (id: string) => any;
 let db: any;
 let ws: any;
-let nextFixerIndex: (websiteId: string, strategy: string) => number;
+let nextFixerIndex: (websiteId: string, fixers: any[], strategy: string) => number;
 let getFixers: (websiteId: string) => any[];
+let parseFixerLink: (raw: string) => { website: string; domain: string } | null;
 
 beforeAll(async () => {
   db = await import('../src/db');
@@ -19,6 +20,8 @@ beforeAll(async () => {
   nextFixerIndex = fx.nextFixerIndex;
   getFixers = fx.getFixers;
   ws = await import('../src/websites');
+  const list = await import('../src/commands/list');
+  parseFixerLink = list.parseFixerLink;
 });
 
 afterAll(() => {
@@ -56,17 +59,18 @@ describe('fixer registry', () => {
 
 describe('nextFixerIndex', () => {
   it('default and first_come_first_served always pick the leading fixer', () => {
-    expect(nextFixerIndex('twitter', 'default')).toBe(0);
-    expect(nextFixerIndex('twitter', 'first_come_first_served')).toBe(0);
-    expect(nextFixerIndex('reddit', 'round_robin')).toBe(0);
+    expect(nextFixerIndex('twitter', getFixers('twitter'), 'default')).toBe(0);
+    expect(nextFixerIndex('twitter', getFixers('twitter'), 'first_come_first_served')).toBe(0);
+    expect(nextFixerIndex('reddit', [], 'round_robin')).toBe(0);
   });
 
   it('round robin cycles and wraps', () => {
+    const fixers = getFixers('instagram');
     const seq = [
-      nextFixerIndex('instagram', 'round_robin'),
-      nextFixerIndex('instagram', 'round_robin'),
-      nextFixerIndex('instagram', 'round_robin'),
-      nextFixerIndex('instagram', 'round_robin'),
+      nextFixerIndex('instagram', fixers, 'round_robin'),
+      nextFixerIndex('instagram', fixers, 'round_robin'),
+      nextFixerIndex('instagram', fixers, 'round_robin'),
+      nextFixerIndex('instagram', fixers, 'round_robin'),
     ];
     expect(new Set(seq)).toEqual(new Set([0, 1, 2]));
     expect(seq[3]).toBe(seq[0]);
@@ -135,5 +139,76 @@ describe('end-to-end fixer selection', () => {
     const guild = insertGuild('f-persist');
     guild.update({ fixer_strategy: 'first_come_first_served' });
     expect(db.Guild.find('f-persist').fixer_strategy).toBe('first_come_first_served');
+  });
+});
+
+describe('guild custom fixers', () => {
+  it('round robin reaches a guild custom fixer', async () => {
+    const guild = insertGuild('f-custom-rr');
+    guild.update({ fixer_strategy: 'round_robin' });
+    db.CustomFixer.create('f-custom-rr', 'twitter', 'fixvx.com');
+    const hosts: Array<string | null> = [];
+    for (let i = 0; i < 6; i++) hosts.push(hostOf(await newLink(guild, 'TwitterLink', TWITTER).render()));
+    expect(hosts).toContain('fixvx.com');
+    expect(new Set(hosts)).toEqual(new Set(['fxtwitter.com', 'fixupx.com', 'fixvx.com']));
+  });
+
+  it('default strategy reaches customs only through failover', async () => {
+    const guild = insertGuild('f-custom-def');
+    guild.update({ fixer_strategy: 'default' });
+    db.CustomFixer.create('f-custom-def', 'twitter', 'fixvx.com');
+    const link = newLink(guild, 'TwitterLink', TWITTER);
+    expect(hostOf(await link.render())).toBe('fxtwitter.com');
+    expect(hostOf(await link.retryNextFixer())).toBe('fixupx.com');
+    expect(hostOf(await link.retryNextFixer())).toBe('fixvx.com');
+    expect(hostOf(await link.retryNextFixer())).toBe('fxtwitter.com');
+  });
+
+  it('custom fixers are plain domain swaps (no subdomains or translation)', async () => {
+    const guild = insertGuild('f-custom-plain');
+    guild.update({ fixer_strategy: 'round_robin', twitter_tr: true, lang: 'en', twitter_view: 'gallery' });
+    db.CustomFixer.create('f-custom-plain', 'twitter', 'fixvx.com');
+    const urls: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      const [url] = (await newLink(guild, 'TwitterLink', TWITTER).getFixedUrl()) as unknown as [string, string];
+      urls.push(url);
+    }
+    const customUrl = urls.find((u) => u.includes('fixvx.com'))!;
+    expect(customUrl).toBe('https://fixvx.com/i/status/20');
+  });
+
+  it('CustomFixer and FixerManager CRUD', () => {
+    const g = 'f-crud';
+    insertGuild(g);
+    const a = db.CustomFixer.create(g, 'twitter', 'fixvx.com');
+    expect(db.CustomFixer.findAllByGuild(g).map((c: any) => c.fix_domain)).toEqual(['fixvx.com']);
+    a.delete();
+    expect(db.CustomFixer.findAllByGuild(g)).toEqual([]);
+
+    db.FixerManager.add(g, '123', 'member');
+    db.FixerManager.add(g, '456', 'role');
+    expect(db.FixerManager.findAllByGuild(g).map((m: any) => m.target_id)).toEqual(['123', '456']);
+    db.FixerManager.add(g, '123', 'member');
+    expect(db.FixerManager.findAllByGuild(g).length).toBe(2);
+    db.FixerManager.findAllByGuild(g)[0].delete();
+    expect(db.FixerManager.findAllByGuild(g).length).toBe(1);
+  });
+});
+
+describe('parseFixerLink', () => {
+  it('detects the website and strips subdomain prefixes', () => {
+    expect(parseFixerLink('https://fixupx.com/Jack/status/20')).toEqual({ website: 'twitter', domain: 'fixupx.com' });
+    expect(parseFixerLink('https://g.toinstagram.com/reel/Cx12345')).toEqual({ website: 'instagram', domain: 'toinstagram.com' });
+  });
+
+  it('rejects links that do not use a fixer', () => {
+    expect(parseFixerLink('not a url')).toBeNull();
+    expect(parseFixerLink('https://example.com/some/path')).toBeNull();
+    expect(parseFixerLink('https://instagram.com/p/Cx12345')).toEqual({ website: 'instagram', domain: 'instagram.com' });
+  });
+
+  it('strips www and translation subdomains before deriving the domain', () => {
+    expect(parseFixerLink('https://www.fixupx.com/user/status/20')).toEqual({ website: 'twitter', domain: 'fixupx.com' });
+    expect(parseFixerLink('https://d.fxupx.com/Jack/status/20')).toEqual({ website: 'twitter', domain: 'fxupx.com' });
   });
 });

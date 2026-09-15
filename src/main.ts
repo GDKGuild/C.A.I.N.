@@ -4,6 +4,7 @@ import { TOKEN } from './config';
 import { handleMessageCreate } from './events/messageCreate';
 import { registerCommands } from './commands';
 import { handleSettingsInteraction } from './views/settings';
+import { handleListInteraction, isListInteractionId } from './commands/list';
 
 const client = new Client({
   intents: [
@@ -16,7 +17,11 @@ const client = new Client({
 client.on('messageCreate', (message) => handleMessageCreate(client, message));
 client.on('interactionCreate', (interaction) => {
   if (interaction.isMessageComponent() || interaction.isModalSubmit()) {
-    void handleSettingsInteraction(interaction);
+    if (isListInteractionId(interaction.customId)) {
+      void handleListInteraction(interaction);
+    } else {
+      void handleSettingsInteraction(interaction);
+    }
   }
 });
 

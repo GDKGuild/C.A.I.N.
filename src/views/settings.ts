@@ -16,6 +16,7 @@ import {
   MessageFlags,
   ModalBuilder,
   ModalSubmitInteraction,
+  PermissionFlagsBits,
   Role,
   RoleSelectMenuBuilder,
   StringSelectMenuBuilder,
@@ -25,7 +26,7 @@ import {
   ThreadChannel,
   UserSelectMenuBuilder,
 } from 'discord.js';
-import { CustomWebsite, Filter, FilterTable, Guild as GuildModel, OriginalMessage } from '../db';
+import { CustomWebsite, Filter, FilterTable, FixerManager, Guild as GuildModel, OriginalMessage } from '../db';
 import { FIXER_STRATEGIES } from '../fixers';
 import { EMOJI, LINKS } from '../config';
 import { t } from '../i18n';
@@ -1637,6 +1638,83 @@ class FixerStrategySetting extends BaseSetting {
   }
 }
 
+class FixerManagersSetting extends BaseSetting {
+  name = 'settings.fixer_managers.name';
+  id = 'fixer_managers';
+  description = 'settings.fixer_managers.description';
+  emoji = '🔐';
+
+  async embed(): Promise<EmbedBuilder> {
+    const managers = FixerManager.findAllByGuild(this.guild.id);
+    const lines =
+      managers.length > 0
+        ? managers.map((m, idx) => t(`settings.fixer_managers.${m.type}`, { index: idx + 1, id: m.target_id }))
+        : [t('settings.fixer_managers.none')];
+    const embed = new EmbedBuilder().setTitle(`${this.emoji} ${t(this.name)}`).setDescription(
+      t('settings.fixer_managers.content', {
+        list: lines.join('\n'),
+        gate: t('settings.fixer_managers.gate'),
+      }),
+    );
+    setEmbedFooter(this.bot, embed);
+    return embed;
+  }
+
+  async items(): Promise<Array<RowItem>> {
+    const memberSelect = new UserSelectMenuBuilder()
+      .setCustomId('fixer_managers_add_member')
+      .setMaxValues(1)
+      .setPlaceholder(t('settings.fixer_managers.add_member'));
+    this.view.register('fixer_managers_add_member', (i) => this.addMember(i));
+
+    const roleSelect = new RoleSelectMenuBuilder()
+      .setCustomId('fixer_managers_add_role')
+      .setMaxValues(1)
+      .setPlaceholder(t('settings.fixer_managers.add_role'));
+    this.view.register('fixer_managers_add_role', (i) => this.addRole(i));
+
+    const items: Array<RowItem> = [{ builder: memberSelect }, { builder: roleSelect }];
+    for (const manager of FixerManager.findAllByGuild(this.guild.id)) {
+      const idx = FixerManager.findAllByGuild(this.guild.id).findIndex((m) => m.id === manager.id) + 1;
+      const removeButton = button(ButtonStyle.Danger, `${idx}`, false).setCustomId(`fixer_managers_rm_${manager.id}`);
+      this.view.register(`fixer_managers_rm_${manager.id}`, (i) => this.remove(i, manager.id));
+      items.push({ builder: removeButton });
+    }
+    return items;
+  }
+
+  async canEdit(interaction: Interactive): Promise<boolean> {
+    const guild = interaction.guild;
+    const member = interaction.member as GuildMember | null;
+    if (!guild || !member) return false;
+    if (guild.ownerId === member.id || member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+    await interaction
+      .reply({ content: t('settings.fixer_managers.error.permission'), flags: MessageFlags.Ephemeral })
+      .catch(() => {});
+    return false;
+  }
+
+  async addMember(interaction: Interactive): Promise<void> {
+    if (!interaction.isMessageComponent() || !interaction.isUserSelectMenu()) return;
+    if (!(await this.canEdit(interaction))) return;
+    FixerManager.add(this.guild.id, interaction.values[0], 'member');
+    await this.view.refresh(interaction);
+  }
+
+  async addRole(interaction: Interactive): Promise<void> {
+    if (!interaction.isMessageComponent() || !interaction.isRoleSelectMenu()) return;
+    if (!(await this.canEdit(interaction))) return;
+    FixerManager.add(this.guild.id, interaction.values[0], 'role');
+    await this.view.refresh(interaction);
+  }
+
+  async remove(interaction: Interactive, managerId: number): Promise<void> {
+    if (!(await this.canEdit(interaction))) return;
+    FixerManager.findById(managerId)?.delete();
+    await this.view.refresh(interaction);
+  }
+}
+
 class WebsiteSettings extends BaseSetting {
   name = 'settings.websites.name';
   id = 'websites';
@@ -1744,6 +1822,7 @@ export class SettingsView {
       new ReplyMethodSetting(interaction, this, this.ctx),
       new WebhooksSetting(interaction, this, this.ctx),
       new FixerStrategySetting(interaction, this, this.ctx),
+      new FixerManagersSetting(interaction, this, this.ctx),
     ];
     this.settings = Object.fromEntries(all.map((s) => [s.id, s]));
     this.selected_id = null;

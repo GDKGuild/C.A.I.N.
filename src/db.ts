@@ -217,6 +217,10 @@ export class Guild {
     return CustomWebsite.findAllByGuild(this.id);
   }
 
+  get custom_fixers(): CustomFixer[] {
+    return CustomFixer.findAllByGuild(this.id);
+  }
+
   static find(id: string): Guild | null {
     const row = getGuildStmt.get(id) as GuildRow | undefined;
     return row ? new Guild(row) : null;
@@ -440,6 +444,106 @@ export class CustomWebsite {
   }
 }
 
+export interface CustomFixerRow {
+  id: number;
+  guild_id: string;
+  website: string;
+  fix_domain: string;
+}
+
+export class CustomFixer {
+  id: number;
+  guild_id: string;
+  website: string;
+  fix_domain: string;
+
+  constructor(row: CustomFixerRow) {
+    this.id = row.id;
+    this.guild_id = String(row.guild_id);
+    this.website = row.website;
+    this.fix_domain = row.fix_domain;
+  }
+
+  static find(id: number): CustomFixer | null {
+    const row = db.prepare('SELECT * FROM custom_fixers WHERE id = ?').get(id) as CustomFixerRow | undefined;
+    return row ? new CustomFixer(row) : null;
+  }
+
+  static findAllByGuild(guildId: string): CustomFixer[] {
+    return (db.prepare('SELECT * FROM custom_fixers WHERE guild_id = ?').all(guildId) as CustomFixerRow[]).map(
+      (row) => new CustomFixer(row),
+    );
+  }
+
+  static create(guildId: string, website: string, fix_domain: string): CustomFixer {
+    const info = db
+      .prepare('INSERT INTO custom_fixers (guild_id, website, fix_domain) VALUES (?, ?, ?)')
+      .run(guildId, website, fix_domain);
+    return CustomFixer.find(Number(info.lastInsertRowid))!;
+  }
+
+  delete(): void {
+    db.prepare('DELETE FROM custom_fixers WHERE id = ?').run(this.id);
+  }
+}
+
+export type FixerManagerType = 'member' | 'role';
+
+export interface FixerManagerRow {
+  id: number;
+  guild_id: string;
+  target_id: string;
+  type: FixerManagerType;
+}
+
+export class FixerManager {
+  id: number;
+  guild_id: string;
+  target_id: string;
+  type: FixerManagerType;
+
+  constructor(row: FixerManagerRow) {
+    this.id = row.id;
+    this.guild_id = String(row.guild_id);
+    this.target_id = row.target_id;
+    this.type = row.type;
+  }
+
+  static find(guildId: string, targetId: string, type: FixerManagerType): FixerManager | null {
+    const row = db
+      .prepare('SELECT * FROM fixer_managers WHERE guild_id = ? AND target_id = ? AND type = ?')
+      .get(guildId, targetId, type) as FixerManagerRow | undefined;
+    return row ? new FixerManager(row) : null;
+  }
+
+  static findAllByGuild(guildId: string): FixerManager[] {
+    return (db.prepare('SELECT * FROM fixer_managers WHERE guild_id = ?').all(guildId) as FixerManagerRow[]).map(
+      (row) => new FixerManager(row),
+    );
+  }
+
+  static add(guildId: string, targetId: string, type: FixerManagerType): FixerManager {
+    return (
+      FixerManager.find(guildId, targetId, type) ??
+      (() => {
+        const info = db
+          .prepare('INSERT INTO fixer_managers (guild_id, target_id, type) VALUES (?, ?, ?)')
+          .run(guildId, targetId, type);
+        return FixerManager.findById(Number(info.lastInsertRowid))!;
+      })()
+    );
+  }
+
+  static findById(id: number): FixerManager | null {
+    const row = db.prepare('SELECT * FROM fixer_managers WHERE id = ?').get(id) as FixerManagerRow | undefined;
+    return row ? new FixerManager(row) : null;
+  }
+
+  delete(): void {
+    db.prepare('DELETE FROM fixer_managers WHERE id = ?').run(this.id);
+  }
+}
+
 const findFilterStmt = (table: FilterTable, id: string) =>
   db.prepare(`SELECT * FROM ${table} WHERE ${table === 'members' ? 'user_id' : 'id'} = ? AND guild_id = ?`);
 
@@ -528,10 +632,24 @@ export function initDb(): void {
       domain TEXT NOT NULL,
       fix_domain TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS custom_fixers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      website TEXT NOT NULL,
+      fix_domain TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS fixer_managers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      type TEXT NOT NULL
+    );
     CREATE INDEX IF NOT EXISTS idx_members_user ON members (guild_id, user_id);
     CREATE INDEX IF NOT EXISTS idx_filters_guild ON text_channels (guild_id);
     CREATE INDEX IF NOT EXISTS idx_roles_guild ON roles (guild_id);
     CREATE INDEX IF NOT EXISTS idx_custom_websites_guild ON custom_websites (guild_id);
+    CREATE INDEX IF NOT EXISTS idx_custom_fixers_guild ON custom_fixers (guild_id);
+    CREATE INDEX IF NOT EXISTS idx_fixer_managers_guild ON fixer_managers (guild_id);
   `);
   const cols = db.prepare('PRAGMA table_info(guilds)').all() as Array<{ name: string }>;
   if (!cols.some((c) => c.name === 'fixer_strategy')) {
