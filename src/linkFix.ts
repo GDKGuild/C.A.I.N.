@@ -98,9 +98,10 @@ export async function fixEmbeds(originalMessage: Message, guild: Guild, links: W
   if (messages.length > 0 && toDelete.length === 0 && notSent.length === 0) {
     await editOriginalMessage(guild, originalMessage, permissions, client);
   }
-  // ponytail: skip revert prompt when webhook-attributed, bot can't own-edit those messages
-  if (allSent.length > 0 && !guild.reply_as_original_author_replica) {
-    await registerRevertPrompt(originalMessage, allSent);
+  // ponytail: prompt skipped when webhook-attributed but the webhook is unavailable (no ManageWebhooks)
+  const webhook = guild.reply_as_original_author_replica ? await getOrCreateWebhook(channel, client) : null;
+  if (allSent.length > 0 && (!guild.reply_as_original_author_replica || webhook !== null)) {
+    await registerRevertPrompt(originalMessage, allSent, webhook);
   }
 }
 
@@ -249,6 +250,7 @@ function sleep(ms: number): Promise<void> {
 interface RevertEntry {
   senderId: string;
   fixed: Array<{ message: Message; content: string }>;
+  webhook: Webhook | null;
   timer: NodeJS.Timeout;
 }
 
@@ -265,7 +267,7 @@ export function isRevertInteractionId(customId: string): boolean {
   return customId.startsWith(REVERT_PREFIX);
 }
 
-async function registerRevertPrompt(originalMessage: Message, allSent: Array<[Message, WebsiteLink[]]>): Promise<void> {
+async function registerRevertPrompt(originalMessage: Message, allSent: Array<[Message, WebsiteLink[]]>, webhook: Webhook | null): Promise<void> {
   const token = Math.random().toString(36).slice(2, 10);
   const fixed = allSent.map(([msg, groupLinks]) => ({ message: msg, content: revertContent(groupLinks) }));
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -280,7 +282,7 @@ async function registerRevertPrompt(originalMessage: Message, allSent: Array<[Me
     void prompt.delete().catch(() => {});
     revertRegistry.delete(token);
   }, 60_000);
-  revertRegistry.set(token, { senderId: originalMessage.author.id, fixed, timer });
+  revertRegistry.set(token, { senderId: originalMessage.author.id, fixed, webhook, timer });
 }
 
 export async function handleRevertInteraction(interaction: MessageComponentInteraction): Promise<void> {
@@ -300,9 +302,18 @@ export async function handleRevertInteraction(interaction: MessageComponentInter
   revertRegistry.delete(token);
   if (interaction.customId.startsWith(`${REVERT_PREFIX}do_`)) {
     await Promise.all(
-      entry.fixed.map(({ message, content }) =>
-        safeSend(message.edit({ content, components: [] }), { notFound: true, forbidden: true }),
-      ),
+      entry.fixed.map(async ({ message, content }) => {
+        if (entry.webhook?.token) {
+          const threadId = message.channel.isThread() ? message.channelId : undefined;
+          await safeSend(entry.webhook.editMessage(message.id, { content, threadId }), {
+            notFound: true,
+            forbidden: true,
+            invalidFormBody: 'Embed size exceeds maximum size',
+          });
+        } else {
+          await safeSend(message.edit({ content, components: [] }), { notFound: true, forbidden: true });
+        }
+      }),
     );
   }
   await safeSend((interaction.message as Message).delete(), { notFound: true, forbidden: true });
