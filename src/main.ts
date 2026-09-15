@@ -5,6 +5,7 @@ import { handleMessageCreate } from './events/messageCreate';
 import { registerCommands } from './commands';
 import { handleSettingsInteraction } from './views/settings';
 import { handleListInteraction, isListInteractionId } from './commands/list';
+import { handleRevertInteraction, isRevertInteractionId } from './linkFix';
 
 const client = new Client({
   intents: [
@@ -19,6 +20,8 @@ client.on('interactionCreate', (interaction) => {
   if (interaction.isMessageComponent() || interaction.isModalSubmit()) {
     if (isListInteractionId(interaction.customId)) {
       void handleListInteraction(interaction);
+    } else if (interaction.isMessageComponent() && isRevertInteractionId(interaction.customId)) {
+      void handleRevertInteraction(interaction);
     } else {
       void handleSettingsInteraction(interaction);
     }
