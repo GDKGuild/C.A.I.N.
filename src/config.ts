@@ -11,7 +11,7 @@ export const LINKS: Record<string, string> = {
   repo: config.repo_link,
   original: config.original_link,
   support: config.support_link,
-  credits: config.repo_link + '/blob/v' + VERSION + '/README.md#credits',
+  credits: config.original_link,
 };
 
 export const TOKEN: string = process.env.DISCORD_TOKEN ?? '';
