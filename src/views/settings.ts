@@ -1687,7 +1687,10 @@ class FixerManagersSetting extends BaseSetting {
     const guild = interaction.guild;
     const member = interaction.member as GuildMember | null;
     if (!guild || !member) return false;
-    if (guild.ownerId === member.id || member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+    const isAdmin = [...member.roles.cache.keys()].some((id) =>
+      guild.roles.cache.get(id)?.permissions.has(PermissionFlagsBits.Administrator),
+    );
+    if (guild.ownerId === member.id || isAdmin) return true;
     await interaction
       .reply({ content: t('settings.fixer_managers.error.permission'), flags: MessageFlags.Ephemeral })
       .catch(() => {});

@@ -69,9 +69,18 @@ const SOURCE_DOMAINS: Record<string, string[]> = {
   instagram: ['instagram.com'],
 };
 
+function memberIsAdmin(guild: NonNullable<Interactive['guild']>, member: GuildMember): boolean {
+  // ponytail: derive from guild roles cache, not member.permissions — the latter can
+  // hold a stale cached bitfield from a REST hydrate done before the admin grant.
+  for (const id of member.roles.cache.keys()) {
+    if (guild.roles.cache.get(id)?.permissions.has(PermissionsBitField.Flags.Administrator)) return true;
+  }
+  return false;
+}
+
 function canManage(guild: NonNullable<Interactive['guild']>, member: GuildMember): boolean {
   if (guild.ownerId === member.id) return true;
-  if (member.permissions.has(PermissionsBitField.Flags.Administrator)) return true;
+  if (memberIsAdmin(guild, member)) return true;
   const managers = FixerManager.findAllByGuild(guild.id);
   if (managers.some((m) => m.type === 'member' && m.target_id === member.id)) return true;
   const roleIds = new Set(member.roles.cache.keys());
@@ -87,7 +96,7 @@ async function reachable(domain: string): Promise<boolean> {
   }
 }
 
-function buildDescription(guild: GuildModel, armed: 'add' | 'remove' | null, locale: string): string {
+function buildDescription(guild: GuildModel, locale: string): string {
   const blocks: string[] = [];
   const customs = CustomFixer.findAllByGuild(guild.id);
 
@@ -113,37 +122,32 @@ function buildDescription(guild: GuildModel, armed: 'add' | 'remove' | null, loc
 
   if (blocks.length > 0 && blocks[blocks.length - 1] === '') blocks.pop(); // trim trailing blank
 
-  if (armed === 'add') blocks.push(`\n${t('list.armed.add', {}, locale)}`);
-  if (armed === 'remove') blocks.push(`\n${t('list.armed.remove', {}, locale)}`);
-
   return blocks.join('\n');
 }
 
-function buildAddButton(armed: 'add' | null, locale: string): ButtonBuilder {
-  const isArmed = armed === 'add';
+function buildAddButton(locale: string): ButtonBuilder {
   return new ButtonBuilder()
     .setCustomId('fixer_add')
-    .setStyle(isArmed ? ButtonStyle.Success : ButtonStyle.Secondary)
-    .setLabel(isArmed ? t('list.buttons.add_confirm', {}, locale) : t('list.buttons.add', {}, locale));
+    .setStyle(ButtonStyle.Secondary)
+    .setLabel(t('list.buttons.add', {}, locale));
 }
 
-function buildRemoveButton(armed: 'remove' | null, customsCount: number, locale: string): ButtonBuilder {
-  const isArmed = armed === 'remove';
+function buildRemoveButton(customsCount: number, locale: string): ButtonBuilder {
   return new ButtonBuilder()
     .setCustomId('fixer_remove')
-    .setStyle(isArmed ? ButtonStyle.Danger : ButtonStyle.Secondary)
-    .setLabel(isArmed ? t('list.buttons.remove_confirm', {}, locale) : t('list.buttons.remove', {}, locale))
+    .setStyle(ButtonStyle.Secondary)
+    .setLabel(t('list.buttons.remove', {}, locale))
     .setDisabled(customsCount === 0);
 }
 
 class ListController {
   guild: GuildModel;
   key: string;
-  armed: 'add' | 'remove' | null = null;
   callbacks = new Map<string, Callback>();
   private deleteTimer: NodeJS.Timeout | null = null;
   private locale: string;
   private isInitial = false;
+  private removing = false;
 
   constructor(interaction: ChatInputCommandInteraction) {
     if (!interaction.guild) throw new Error('list view requires a guild');
@@ -159,11 +163,11 @@ class ListController {
   private buildComponents(): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
     const customsCount = CustomFixer.findAllByGuild(this.guild.id).length;
     const items: RowItem[] = [
-      { builder: buildAddButton(this.armed === 'add' ? 'add' : null, this.locale) },
-      { builder: buildRemoveButton(this.armed === 'remove' ? 'remove' : null, customsCount, this.locale) },
+      { builder: buildAddButton(this.locale) },
+      { builder: buildRemoveButton(customsCount, this.locale) },
     ];
 
-    if (this.armed === 'remove' && customsCount > 0) {
+    if (this.removing && customsCount > 0) {
       const customs = CustomFixer.findAllByGuild(this.guild.id);
       const options = customs.map((c) => {
         const label = `${nameById(c.website)} — ${c.fix_domain}`;
@@ -181,7 +185,7 @@ class ListController {
   async refresh(interaction: Interactive): Promise<void> {
     const embed = new EmbedBuilder()
       .setTitle(t('list.title', {}, this.locale))
-      .setDescription(buildDescription(this.guild, this.armed, this.locale));
+      .setDescription(buildDescription(this.guild, this.locale));
     this.setFooter(embed);
     try {
       if (interaction.isModalSubmit() && !interaction.isFromMessage()) {
@@ -204,7 +208,7 @@ class ListController {
 
     const embed = new EmbedBuilder()
       .setTitle(t('list.title', {}, this.locale))
-      .setDescription(buildDescription(this.guild, this.armed, this.locale));
+      .setDescription(buildDescription(this.guild, this.locale));
     this.setFooter(embed);
 
     try {
@@ -240,25 +244,20 @@ class ListController {
         return;
       }
     }
-    if (this.armed === 'add') {
-      const modal = new ModalBuilder()
-        .setCustomId('fixer_link')
-        .setTitle(t('list.add_modal.title', {}, this.locale))
-        .addComponents(
-          new ActionRowBuilder<TextInputBuilder>().addComponents(
-            new TextInputBuilder()
-              .setCustomId('link')
-              .setLabel(t('list.add_modal.label', {}, this.locale))
-              .setStyle(TextInputStyle.Short)
-              .setPlaceholder(t('list.add_modal.placeholder', {}, this.locale))
-              .setRequired(true),
-          ),
-        );
-      await interaction.showModal(modal);
-      return;
-    }
-    this.armed = 'add';
-    await this.refresh(interaction);
+    const modal = new ModalBuilder()
+      .setCustomId('fixer_link')
+      .setTitle(t('list.add_modal.title', {}, this.locale))
+      .addComponents(
+        new ActionRowBuilder<TextInputBuilder>().addComponents(
+          new TextInputBuilder()
+            .setCustomId('link')
+            .setLabel(t('list.add_modal.label', {}, this.locale))
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder(t('list.add_modal.placeholder', {}, this.locale))
+            .setRequired(true),
+        ),
+      );
+    await interaction.showModal(modal);
   }
 
   async removeAction(interaction: Interactive): Promise<void> {
@@ -274,12 +273,7 @@ class ListController {
       await interaction.reply({ content: t('list.error.no_custom', {}, this.locale), flags: MessageFlags.Ephemeral }).catch(() => {});
       return;
     }
-    if (this.armed === 'remove') {
-      this.armed = null;
-      await this.refresh(interaction);
-      return;
-    }
-    this.armed = 'remove';
+    this.removing = true;
     await this.refresh(interaction);
   }
 
@@ -295,7 +289,7 @@ class ListController {
     const id = Number(interaction.values[0]);
     const cf = CustomFixer.find(id);
     if (cf) cf.delete();
-    this.armed = null;
+    this.removing = false;
     await this.refresh(interaction);
   }
 
@@ -335,7 +329,7 @@ class ListController {
     }
 
     CustomFixer.create(this.guild.id, website, domain);
-    this.armed = null;
+    this.removing = false;
     await this.refresh(interaction);
   }
 }
