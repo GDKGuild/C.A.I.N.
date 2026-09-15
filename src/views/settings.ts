@@ -26,6 +26,7 @@ import {
   UserSelectMenuBuilder,
 } from 'discord.js';
 import { CustomWebsite, Filter, FilterTable, Guild as GuildModel, OriginalMessage } from '../db';
+import { FIXER_STRATEGIES } from '../fixers';
 import { EMOJI, LINKS } from '../config';
 import { t } from '../i18n';
 import { boolString, formatPerms, isMissingPerm, mentionOf, setEmbedFooter } from '../utils';
@@ -1595,6 +1596,47 @@ class CustomWebsitesSetting extends BaseSetting {
   }
 }
 
+class FixerStrategySetting extends BaseSetting {
+  name = 'settings.fixer_strategy.name';
+  id = 'fixer_strategy';
+  description = 'settings.fixer_strategy.description';
+  emoji = '🔁';
+
+  async embed(): Promise<EmbedBuilder> {
+    const embed = new EmbedBuilder()
+      .setTitle(`${this.emoji} ${t(this.name)}`)
+      .setDescription(
+        t('settings.fixer_strategy.content', {
+          strategy: t(`settings.fixer_strategy.strategy.${this.guild.fixer_strategy}`),
+        }),
+      );
+    setEmbedFooter(this.bot, embed);
+    return embed;
+  }
+
+  async items(): Promise<Array<RowItem>> {
+    const selector = new StringSelectMenuBuilder()
+      .setCustomId(this.id)
+      .setMaxValues(1)
+      .addOptions(
+        FIXER_STRATEGIES.map((strategy) =>
+          new StringSelectMenuOptionBuilder()
+            .setLabel(t(`settings.fixer_strategy.strategy.${strategy}`))
+            .setValue(strategy)
+            .setDefault(strategy === this.guild.fixer_strategy),
+        ),
+      );
+    this.view.register(this.id, (i) => this.action(i));
+    return [{ builder: selector }];
+  }
+
+  async action(interaction: Interactive): Promise<void> {
+    if (!interaction.isMessageComponent() || !interaction.isStringSelectMenu()) return;
+    this.guild.update({ fixer_strategy: interaction.values[0] as GuildModel['fixer_strategy'] });
+    await this.view.refresh(interaction);
+  }
+}
+
 class WebsiteSettings extends BaseSetting {
   name = 'settings.websites.name';
   id = 'websites';
@@ -1701,6 +1743,7 @@ export class SettingsView {
       new OriginalMessageBehaviorSetting(interaction, this, this.ctx),
       new ReplyMethodSetting(interaction, this, this.ctx),
       new WebhooksSetting(interaction, this, this.ctx),
+      new FixerStrategySetting(interaction, this, this.ctx),
     ];
     this.settings = Object.fromEntries(all.map((s) => [s.id, s]));
     this.selected_id = null;

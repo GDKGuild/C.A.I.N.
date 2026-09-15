@@ -60,6 +60,7 @@ function compareSource(source: string): string {
 
 async function runCase(clsName: string, url: string, guildId: string, mutate?: (g: any) => void): Promise<CaseResult> {
   const guild = insertGuild(guildId);
+  guild.update({ fixer_strategy: 'default' });
   mutate?.(guild);
   const cls = websites.find((c: any) => c.name === clsName);
   if (!cls) throw new Error(`no class ${clsName}`);

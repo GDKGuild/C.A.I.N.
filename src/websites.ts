@@ -1,4 +1,5 @@
 import { CustomWebsite, Guild } from './db';
+import { getFixers, nextFixerIndex } from './fixers';
 
 export function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -45,6 +46,9 @@ export abstract class WebsiteLink {
   url: string;
   spoiler: boolean;
   private _rendered: string | null = null;
+  protected fixerIndex = 0;
+  protected fixerCount = 0;
+  protected fixerOverride: number | null = null;
 
   constructor(guild: Guild, url: string, spoiler = false) {
     this.guild = guild;
@@ -83,6 +87,17 @@ export abstract class WebsiteLink {
 
   get rendered(): string | null {
     return this._rendered;
+  }
+
+  async retryNextFixer(): Promise<string | null> {
+    if (this.fixerCount <= 1 || this._rendered === null) {
+      return null;
+    }
+    this._rendered = null;
+    this.fixerOverride = (this.fixerIndex + 1) % this.fixerCount;
+    const out = await this.render();
+    this.fixerOverride = null;
+    return out;
   }
 }
 
@@ -199,12 +214,25 @@ export class GenericWebsiteLink extends WebsiteLink {
   }
 
   async getFixedUrl(): Promise<[string | null, string | null]> {
-    const fixedUrl = this.getPatchedUrl(
-      this.staticC.fixDomain,
-      this.routeFixSubdomain(),
-      this.routeFixPostPathSegments(),
-    );
-    return [fixedUrl, this.staticC.fixerName];
+    const fixers = getFixers(this.staticC.id);
+    if (fixers.length > 0) {
+      const fixerIndex = this.fixerOverride ?? nextFixerIndex(this.staticC.id, this.guild.fixer_strategy);
+      const fixer = fixers[fixerIndex];
+      this.fixerIndex = fixerIndex;
+      this.fixerCount = fixers.length;
+      const subdomain = fixer.subdomains ? (fixer.subdomains[this.currentView()] ?? '') : '';
+      const postPathSegments = fixer.isTranslation ? this.routeFixPostPathSegments() : '';
+      return [this.getPatchedUrl(fixer.domain, subdomain, postPathSegments), fixer.name];
+    }
+    return [
+      this.getPatchedUrl(this.staticC.fixDomain, this.routeFixSubdomain(), this.routeFixPostPathSegments()),
+      this.staticC.fixerName,
+    ];
+  }
+
+  private currentView(): string {
+    const view = this.guild[`${this.staticC.id}_view` as keyof Guild] as string;
+    return view ?? 'normal';
   }
 
   async getAuthorUrl(): Promise<[string | null, string | null]> {

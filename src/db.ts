@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import { FixerStrategy } from './fixers';
 
 const DB_DIR = process.env.DB_PATH ? path.dirname(process.env.DB_PATH) : process.cwd();
 const DB_FILE = process.env.DB_PATH ?? path.join(DB_DIR, 'data.sqlite');
@@ -22,6 +23,7 @@ export type FilterTable = 'text_channels' | 'members' | 'roles';
 export interface GuildRow {
   id: string;
   keywords: string;
+  fixer_strategy: string;
   keywords_use_allow_list: number;
   text_channels_use_allow_list: number;
   members_use_allow_list: number;
@@ -152,6 +154,7 @@ export class Guild {
   pinterest_view: EmbedEzView;
   pinterest_tr: boolean;
   newgrounds: boolean;
+  fixer_strategy: FixerStrategy;
 
   private constructor(row: GuildRow) {
     this.id = row.id;
@@ -207,6 +210,7 @@ export class Guild {
     this.pinterest_view = row.pinterest_view as EmbedEzView;
     this.pinterest_tr = !!row.pinterest_tr;
     this.newgrounds = !!row.newgrounds;
+    this.fixer_strategy = row.fixer_strategy as FixerStrategy;
   }
 
   get custom_websites(): CustomWebsite[] {
@@ -234,8 +238,8 @@ export class Guild {
 }
 
 const getGuildStmt = db.prepare('SELECT * FROM guilds WHERE id = ?');
-const insertGuildStmt = db.prepare(`INSERT INTO guilds (id, keywords, keywords_use_allow_list, text_channels_use_allow_list, members_use_allow_list, roles_use_allow_list, roles_use_any_rule, lang, original_message, reply_to_message, reply_silently, reply_as_original_author_replica, webhooks, twitter, twitter_tr, twitter_view, instagram, instagram_view, instagram_tr, tiktok, tiktok_view, reddit, threads, bluesky, bluesky_view, pixiv, ifunny, ifunny_view, ifunny_tr, furaffinity, youtube, mastodon, deviantart, tumblr, facebook, bilibili, twitch, spotify, snapchat, snapchat_view, snapchat_tr, imgur, imgur_view, imgur_tr, weibo, weibo_view, weibo_tr, imageboards, imageboards_view, pinterest, pinterest_view, pinterest_tr, newgrounds)
-  VALUES (@id, @keywords, 0, 0, 0, 0, 0, NULL, 'remove_embeds', 0, 1, 0, 0, 1, 0, 'normal', 1, 'normal', 0, 1, 'normal', 1, 1, 1, 'normal', 1, 1, 'normal', 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 'normal', 0, 0, 'normal', 0, 1, 'normal', 0, 1, 'normal', 1, 'normal', 0, 1)`);
+const insertGuildStmt = db.prepare(`INSERT INTO guilds (id, keywords, keywords_use_allow_list, text_channels_use_allow_list, members_use_allow_list, roles_use_allow_list, roles_use_any_rule, lang, original_message, reply_to_message, reply_silently, reply_as_original_author_replica, webhooks, twitter, twitter_tr, twitter_view, instagram, instagram_view, instagram_tr, tiktok, tiktok_view, reddit, threads, bluesky, bluesky_view, pixiv, ifunny, ifunny_view, ifunny_tr, furaffinity, youtube, mastodon, deviantart, tumblr, facebook, bilibili, twitch, spotify, snapchat, snapchat_view, snapchat_tr, imgur, imgur_view, imgur_tr, weibo, weibo_view, weibo_tr, imageboards, imageboards_view, pinterest, pinterest_view, pinterest_tr, newgrounds, fixer_strategy)
+  VALUES (@id, @keywords, 0, 0, 0, 0, 0, NULL, 'remove_embeds', 0, 1, 0, 0, 1, 0, 'normal', 1, 'normal', 0, 1, 'normal', 1, 1, 1, 'normal', 1, 1, 'normal', 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 'normal', 0, 0, 'normal', 0, 1, 'normal', 0, 1, 'normal', 1, 'normal', 0, 1, 'round_robin')`);
 
 export function insertGuild(id: string): Guild {
   insertGuildStmt.run({ id, keywords: JSON.stringify(['fxignore']) });
@@ -494,7 +498,8 @@ export function initDb(): void {
       pinterest INTEGER NOT NULL DEFAULT 1,
       pinterest_view TEXT NOT NULL DEFAULT 'normal',
       pinterest_tr INTEGER NOT NULL DEFAULT 0,
-      newgrounds INTEGER NOT NULL DEFAULT 1
+      newgrounds INTEGER NOT NULL DEFAULT 1,
+      fixer_strategy TEXT NOT NULL DEFAULT 'round_robin'
     );
     CREATE TABLE IF NOT EXISTS text_channels (
       id TEXT PRIMARY KEY,
@@ -528,4 +533,8 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_roles_guild ON roles (guild_id);
     CREATE INDEX IF NOT EXISTS idx_custom_websites_guild ON custom_websites (guild_id);
   `);
+  const cols = db.prepare('PRAGMA table_info(guilds)').all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === 'fixer_strategy')) {
+    db.exec(`ALTER TABLE guilds ADD COLUMN fixer_strategy TEXT NOT NULL DEFAULT 'round_robin'`);
+  }
 }

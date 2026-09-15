@@ -56,13 +56,25 @@ export async function fixEmbeds(originalMessage: Message, guild: Guild, links: W
   for (const link of links) {
     if (await link.render()) rendered.push(link);
   }
-  const [notSent, messages] =
+  let [notSent, messages] =
     rendered.length > 0 ? await sendFixedLinks(rendered, guild, originalMessage, client) : [[], []];
 
   let toDelete: Message[] = [];
   if (messages.length > 0) {
     const results = await Promise.all(messages.map(([msg]) => waitForEmbed(msg, client)));
-    toDelete = messages.filter((_, i) => !results[i]).map(([msg]) => msg);
+    for (const [msg, failedLinks] of messages.filter((_, i) => !results[i])) {
+      const retried: WebsiteLink[] = [];
+      for (const link of failedLinks) {
+        if (await link.retryNextFixer()) retried.push(link);
+      }
+      if (retried.length > 0) {
+        const [notSent2, messages2] = await sendFixedLinks(retried, guild, originalMessage, client);
+        notSent.push(...notSent2);
+        const results2 = await Promise.all(messages2.map(([m]) => waitForEmbed(m, client)));
+        toDelete.push(...messages2.filter((_, i) => !results2[i]).map(([m]) => m));
+      }
+      toDelete.push(msg);
+    }
     if (toDelete.length > 0) {
       console.warn(`message(s) has no embed after waiting: ${toDelete.length}`);
       await Promise.all(toDelete.map((m) => safeSend(m.delete(), { notFound: true, forbidden: true })));
