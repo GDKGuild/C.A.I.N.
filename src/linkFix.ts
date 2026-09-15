@@ -1,6 +1,10 @@
 import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   Client,
   Message,
+  MessageComponentInteraction,
   MessageFlags,
   NewsChannel,
   PartialMessage,
@@ -15,6 +19,7 @@ import { Guild } from './db';
 import { type EmbeddableUrl } from './markdown';
 import { websites, type WebsiteLink } from './websites';
 import { groupItems, safeSend } from './utils';
+import { t } from './i18n';
 
 export type GuildChannel = TextChannel | NewsChannel | ThreadChannel;
 
@@ -59,6 +64,7 @@ export async function fixEmbeds(originalMessage: Message, guild: Guild, links: W
   let [notSent, messages] =
     rendered.length > 0 ? await sendFixedLinks(rendered, guild, originalMessage, client) : [[], []];
 
+  const allSent: Array<[Message, WebsiteLink[]]> = [];
   let toDelete: Message[] = [];
   if (messages.length > 0) {
     const results = await Promise.all(messages.map(([msg]) => waitForEmbed(msg, client)));
@@ -72,8 +78,14 @@ export async function fixEmbeds(originalMessage: Message, guild: Guild, links: W
         notSent.push(...notSent2);
         const results2 = await Promise.all(messages2.map(([m]) => waitForEmbed(m, client)));
         toDelete.push(...messages2.filter((_, i) => !results2[i]).map(([m]) => m));
+        for (const [m, linksInGroup] of messages2.filter((_, i) => results2[i])) {
+          allSent.push([m, linksInGroup]);
+        }
       }
       toDelete.push(msg);
+    }
+    for (const [msg, linksInGroup] of messages.filter((_, i) => results[i])) {
+      allSent.push([msg, linksInGroup]);
     }
     if (toDelete.length > 0) {
       console.warn(`message(s) has no embed after waiting: ${toDelete.length}`);
@@ -85,6 +97,10 @@ export async function fixEmbeds(originalMessage: Message, guild: Guild, links: W
   }
   if (messages.length > 0 && toDelete.length === 0 && notSent.length === 0) {
     await editOriginalMessage(guild, originalMessage, permissions, client);
+  }
+  // ponytail: skip revert prompt when webhook-attributed, bot can't own-edit those messages
+  if (allSent.length > 0 && !guild.reply_as_original_author_replica) {
+    await registerRevertPrompt(originalMessage, allSent);
   }
 }
 
@@ -228,4 +244,66 @@ export async function editOriginalMessage(
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+interface RevertEntry {
+  senderId: string;
+  fixed: Array<{ message: Message; content: string }>;
+  timer: NodeJS.Timeout;
+}
+
+const revertRegistry = new Map<string, RevertEntry>();
+const REVERT_PREFIX = 'fixer_revert_';
+
+export function revertContent(links: WebsiteLink[]): string {
+  return groupItems(links, 2000, '\n', (link) => link.url)
+    .map(([content]) => content)
+    .join('\n');
+}
+
+export function isRevertInteractionId(customId: string): boolean {
+  return customId.startsWith(REVERT_PREFIX);
+}
+
+async function registerRevertPrompt(originalMessage: Message, allSent: Array<[Message, WebsiteLink[]]>): Promise<void> {
+  const token = Math.random().toString(36).slice(2, 10);
+  const fixed = allSent.map(([msg, groupLinks]) => ({ message: msg, content: revertContent(groupLinks) }));
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`${REVERT_PREFIX}keep_${token}`).setLabel(t('revert.button.keep')).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`${REVERT_PREFIX}do_${token}`).setLabel(t('revert.button.revert')).setStyle(ButtonStyle.Danger),
+  );
+  const [ok, prompt] = await safeSend(allSent[0][0].reply({ content: t('revert.prompt'), components: [row] }), {
+    forbidden: true,
+  });
+  if (!ok || !prompt) return;
+  const timer = setTimeout(() => {
+    void prompt.delete().catch(() => {});
+    revertRegistry.delete(token);
+  }, 60_000);
+  revertRegistry.set(token, { senderId: originalMessage.author.id, fixed, timer });
+}
+
+export async function handleRevertInteraction(interaction: MessageComponentInteraction): Promise<void> {
+  const token = interaction.customId.replace(`${REVERT_PREFIX}keep_`, '').replace(`${REVERT_PREFIX}do_`, '');
+  const entry = revertRegistry.get(token);
+  if (!entry) {
+    await interaction.deferUpdate().catch(() => {});
+    return;
+  }
+  if (interaction.user.id !== entry.senderId) {
+    await interaction
+      .reply({ content: t('revert.error.not_yours', {}, interaction.locale), flags: MessageFlags.Ephemeral })
+      .catch(() => {});
+    return;
+  }
+  clearTimeout(entry.timer);
+  revertRegistry.delete(token);
+  if (interaction.customId.startsWith(`${REVERT_PREFIX}do_`)) {
+    await Promise.all(
+      entry.fixed.map(({ message, content }) =>
+        safeSend(message.edit({ content, components: [] }), { notFound: true, forbidden: true }),
+      ),
+    );
+  }
+  await safeSend((interaction.message as Message).delete(), { notFound: true, forbidden: true });
 }
