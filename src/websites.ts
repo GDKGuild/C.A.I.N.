@@ -1,5 +1,5 @@
 import { CustomWebsite, Guild } from './db';
-import { getFixers, nextFixerIndex } from './fixers';
+import { Fixer, getFixers, nextFixerIndex } from './fixers';
 
 export function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -214,9 +214,13 @@ export class GenericWebsiteLink extends WebsiteLink {
   }
 
   async getFixedUrl(): Promise<[string | null, string | null]> {
-    const fixers = getFixers(this.staticC.id);
+    const registry = getFixers(this.staticC.id);
+    const customs = this.guild.custom_fixers
+      .filter((custom) => custom.website === this.staticC.id)
+      .map<Fixer>((custom) => ({ domain: custom.fix_domain, name: custom.fix_domain }));
+    const fixers = registry.length > 0 ? [...registry, ...customs] : [];
     if (fixers.length > 0) {
-      const fixerIndex = this.fixerOverride ?? nextFixerIndex(this.staticC.id, this.guild.fixer_strategy);
+      const fixerIndex = this.fixerOverride ?? nextFixerIndex(this.staticC.id, fixers, this.guild.fixer_strategy);
       const fixer = fixers[fixerIndex];
       this.fixerIndex = fixerIndex;
       this.fixerCount = fixers.length;

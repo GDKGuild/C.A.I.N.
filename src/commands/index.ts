@@ -4,6 +4,7 @@ import { t } from '../i18n';
 import { TOKEN } from '../config';
 import { aboutCommand } from './about';
 import { settingsCommand, settingsCommandBuilder } from './settings';
+import { listCommand } from './list';
 
 export interface Command {
   builder: SlashCommandBuilder;
@@ -26,6 +27,14 @@ export function getCommands(): Command[] {
   commands.push({
     builder: settingsCommandBuilder(),
     handler: settingsCommand,
+  });
+
+  commands.push({
+    builder: new SlashCommandBuilder()
+      .setName(t('list.command.name'))
+      .setDescription(t('list.command.description'))
+      .setDMPermission(false),
+    handler: listCommand,
   });
 
   return commands;

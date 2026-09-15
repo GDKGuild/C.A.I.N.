@@ -39,15 +39,14 @@ export function getFixers(websiteId: string): Fixer[] {
 // ponytail: in-memory round-robin cursor, resets on restart; map it to a table if per-guild fairness is ever needed
 const rrNext: Record<string, number> = {};
 
-export function nextFixerIndex(websiteId: string, strategy: FixerStrategy): number {
-  const list = getFixers(websiteId);
-  if (list.length === 0) return 0;
+export function nextFixerIndex(websiteId: string, fixers: Fixer[], strategy: FixerStrategy): number {
+  if (fixers.length === 0) return 0;
   if (strategy === 'first_come_first_served') return 0;
   if (strategy === 'default') {
-    const def = list.findIndex((fixer) => fixer.default);
+    const def = fixers.findIndex((fixer) => fixer.default);
     return def === -1 ? 0 : def;
   }
-  const index = (rrNext[websiteId] ?? 0) % list.length;
+  const index = (rrNext[websiteId] ?? 0) % fixers.length;
   rrNext[websiteId] = index + 1;
   return index;
 }

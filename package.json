@@ -1,6 +1,6 @@
 {
   "name": "fixtweetbot-ts",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Discord bot that unpublishes embeds from tweets and other social media links (TypeScript port of FixTweetBot)",
   "main": "dist/main.js",
   "scripts": {
