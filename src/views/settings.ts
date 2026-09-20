@@ -25,12 +25,13 @@ import {
   ThreadChannel,
   UserSelectMenuBuilder,
 } from 'discord.js';
-import { CustomWebsite, Filter, FilterTable, FixerManager, Guild as GuildModel, OriginalMessage } from '../db';
-import { FIXER_STRATEGIES } from '../fixers';
+import { CustomWebsite, Filter, FilterTable, FixerManager, FixerSelection, Guild as GuildModel, OriginalMessage } from '../db';
+import { FIXER_STRATEGIES, getFixers } from '../fixers';
 import { EMOJI, LINKS } from '../config';
 import { t } from '../i18n';
-import { canUseSettings, denySettings, isAdmin, isServerOwner } from '../permissions';
+import { canUseSettings, denySettings, isAdmin, isBotOwner, isServerOwner } from '../permissions';
 import { boolString, formatPerms, isMissingPerm, mentionOf, setEmbedFooter } from '../utils';
+import { websites, CustomLink, GenericWebsiteLink, nameOf } from '../websites';
 
 const ORIGINAL_MESSAGES: OriginalMessage[] = ['nothing', 'remove_embeds', 'delete'];
 const FX_EMBED_VIEWS = ['normal', 'gallery', 'text_only', 'direct_media'];
@@ -1603,13 +1604,47 @@ class FixerStrategySetting extends BaseSetting {
   description = 'settings.fixer_strategy.description';
   emoji = '🔁';
 
+  private websiteName(websiteId: string): string {
+    const cls = websites.find((w) => w.id === websiteId && w !== CustomLink) as typeof GenericWebsiteLink | undefined;
+    return cls ? nameOf(cls) : websiteId;
+  }
+
+  private eligibleWebsites(): Array<{ site: typeof GenericWebsiteLink; domains: string[] }> {
+    const customs = this.guild.custom_fixers;
+    const out: Array<{ site: typeof GenericWebsiteLink; domains: string[] }> = [];
+    for (const cls of websites) {
+      if (cls === CustomLink) continue;
+      const site = cls as typeof GenericWebsiteLink;
+      const registry = getFixers(site.id);
+      const siteCustoms = customs.filter((c) => c.website === site.id);
+      const domains = [
+        ...registry.map((f) => f.domain),
+        ...siteCustoms.map((c) => c.fix_domain),
+      ];
+      if (domains.length >= 2) out.push({ site, domains });
+    }
+    return out;
+  }
+
   async embed(): Promise<EmbedBuilder> {
+    const selections = FixerSelection.findAllByGuild(this.guild.id);
+    const selected =
+      selections.length > 0
+        ? `${t('settings.fixer_strategy.selected')}\n${selections
+            .map((s) =>
+              t('settings.fixer_strategy.selected.line', {
+                website: this.websiteName(s.website),
+                domain: s.fix_domain,
+              }),
+            )
+            .join('\n')}`
+        : t('settings.fixer_strategy.selected.none');
     const embed = new EmbedBuilder()
       .setTitle(`${this.emoji} ${t(this.name)}`)
       .setDescription(
-        t('settings.fixer_strategy.content', {
+        `${t('settings.fixer_strategy.content', {
           strategy: t(`settings.fixer_strategy.strategy.${this.guild.fixer_strategy}`),
-        }),
+        })}\n\n${selected}\n${t('settings.fixer_strategy.select.toggle_hint')}`,
       );
     setEmbedFooter(this.bot, embed);
     return embed;
@@ -1628,12 +1663,47 @@ class FixerStrategySetting extends BaseSetting {
         ),
       );
     this.view.register(this.id, (i) => this.action(i));
-    return [{ builder: selector }];
+
+    const items: Array<RowItem> = [{ builder: selector }];
+
+    const pinned = new Map(FixerSelection.findAllByGuild(this.guild.id).map((s) => [s.website, s.fix_domain]));
+    const options = this.eligibleWebsites().flatMap(({ site, domains }) =>
+      domains.map((domain) =>
+        new StringSelectMenuOptionBuilder()
+          .setLabel(`${pinned.get(site.id) === domain ? '📌 ' : ''}${nameOf(site)} — ${domain}`)
+          .setValue(`${site.id}:${domain}`),
+      ),
+    );
+    if (options.length > 0) {
+      const fixerSelect = new StringSelectMenuBuilder()
+        .setCustomId('fixer_select')
+        .setMaxValues(1)
+        .setPlaceholder(t('settings.fixer_strategy.select.placeholder'))
+        .addOptions(options);
+      this.view.register('fixer_select', (i) => this.selectFixer(i));
+      items.push({ builder: fixerSelect });
+    }
+    return items;
   }
 
   async action(interaction: Interactive): Promise<void> {
     if (!interaction.isMessageComponent() || !interaction.isStringSelectMenu()) return;
     this.guild.update({ fixer_strategy: interaction.values[0] as GuildModel['fixer_strategy'] });
+    await this.view.refresh(interaction);
+  }
+
+  async selectFixer(interaction: Interactive): Promise<void> {
+    if (!interaction.isMessageComponent() || !interaction.isStringSelectMenu()) return;
+    const raw = interaction.values[0];
+    const colon = raw.indexOf(':');
+    const website = raw.slice(0, colon);
+    const domain = raw.slice(colon + 1);
+    const existing = FixerSelection.findByGuildAndWebsite(this.guild.id, website);
+    if (existing && existing.fix_domain === domain) {
+      existing.delete();
+    } else {
+      FixerSelection.set(this.guild.id, website, domain);
+    }
     await this.view.refresh(interaction);
   }
 }
@@ -1687,7 +1757,7 @@ class FixerManagersSetting extends BaseSetting {
     const guild = interaction.guild;
     const member = interaction.member as GuildMember | null;
     if (!guild || !member) return false;
-    if (isServerOwner(guild, member) || isAdmin(guild, member)) return true;
+    if (isBotOwner(interaction.client, member.id) || isServerOwner(guild, member) || isAdmin(guild, member)) return true;
     await interaction
       .reply({ content: t('settings.fixer_managers.error.permission'), flags: MessageFlags.Ephemeral })
       .catch(() => {});

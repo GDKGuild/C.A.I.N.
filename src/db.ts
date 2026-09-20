@@ -487,6 +487,57 @@ export class CustomFixer {
   }
 }
 
+export interface FixerSelectionRow {
+  id: number;
+  guild_id: string;
+  website: string;
+  fix_domain: string;
+}
+
+export class FixerSelection {
+  id: number;
+  guild_id: string;
+  website: string;
+  fix_domain: string;
+
+  constructor(row: FixerSelectionRow) {
+    this.id = row.id;
+    this.guild_id = String(row.guild_id);
+    this.website = row.website;
+    this.fix_domain = row.fix_domain;
+  }
+
+  static find(id: number): FixerSelection | null {
+    const row = db.prepare('SELECT * FROM fixer_selections WHERE id = ?').get(id) as FixerSelectionRow | undefined;
+    return row ? new FixerSelection(row) : null;
+  }
+
+  static findByGuildAndWebsite(guildId: string, website: string): FixerSelection | null {
+    const row = db
+      .prepare('SELECT * FROM fixer_selections WHERE guild_id = ? AND website = ?')
+      .get(guildId, website) as FixerSelectionRow | undefined;
+    return row ? new FixerSelection(row) : null;
+  }
+
+  static findAllByGuild(guildId: string): FixerSelection[] {
+    return (db.prepare('SELECT * FROM fixer_selections WHERE guild_id = ?').all(guildId) as FixerSelectionRow[]).map(
+      (row) => new FixerSelection(row),
+    );
+  }
+
+  static set(guildId: string, website: string, fixDomain: string): FixerSelection {
+    db.prepare(
+      `INSERT INTO fixer_selections (guild_id, website, fix_domain) VALUES (?, ?, ?)
+       ON CONFLICT (guild_id, website) DO UPDATE SET fix_domain = excluded.fix_domain`,
+    ).run(guildId, website, fixDomain);
+    return FixerSelection.findByGuildAndWebsite(guildId, website)!;
+  }
+
+  delete(): void {
+    db.prepare('DELETE FROM fixer_selections WHERE id = ?').run(this.id);
+  }
+}
+
 export type FixerManagerType = 'member' | 'role';
 
 export interface FixerManagerRow {
@@ -644,12 +695,20 @@ export function initDb(): void {
       target_id TEXT NOT NULL,
       type TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS fixer_selections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      website TEXT NOT NULL,
+      fix_domain TEXT NOT NULL,
+      UNIQUE (guild_id, website)
+    );
     CREATE INDEX IF NOT EXISTS idx_members_user ON members (guild_id, user_id);
     CREATE INDEX IF NOT EXISTS idx_filters_guild ON text_channels (guild_id);
     CREATE INDEX IF NOT EXISTS idx_roles_guild ON roles (guild_id);
     CREATE INDEX IF NOT EXISTS idx_custom_websites_guild ON custom_websites (guild_id);
     CREATE INDEX IF NOT EXISTS idx_custom_fixers_guild ON custom_fixers (guild_id);
     CREATE INDEX IF NOT EXISTS idx_fixer_managers_guild ON fixer_managers (guild_id);
+    CREATE INDEX IF NOT EXISTS idx_fixer_selections_guild ON fixer_selections (guild_id);
   `);
   const cols = db.prepare('PRAGMA table_info(guilds)').all() as Array<{ name: string }>;
   if (!cols.some((c) => c.name === 'fixer_strategy')) {

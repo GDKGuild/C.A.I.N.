@@ -21,9 +21,9 @@ import {
 import { CustomFixer, FixerManager, Guild as GuildModel } from '../db';
 import { getFixers } from '../fixers';
 import { t } from '../i18n';
-import { isAdmin, isServerOwner } from '../permissions';
+import { isAdmin, isBotOwner, isServerOwner } from '../permissions';
 import { packRows } from '../views/settings';
-import { websites, CustomLink, GenericWebsiteLink } from '../websites';
+import { websites, CustomLink, GenericWebsiteLink, nameOf } from '../websites';
 
 type Interactive = MessageComponentInteraction | ModalSubmitInteraction;
 type Callback = (interaction: Interactive) => Promise<void>;
@@ -31,11 +31,6 @@ type Callback = (interaction: Interactive) => Promise<void>;
 interface RowItem {
   builder: MessageActionRowComponentBuilder;
   row?: number;
-}
-
-const NAME_MAP: Record<string, string> = { twitter: 'Twitter/X', instagram: 'Instagram' };
-function nameOf(cls: typeof GenericWebsiteLink): string {
-  return NAME_MAP[cls.id] ?? (cls.hypertextLabel || cls.id);
 }
 
 const TWITTER_PATH = /^\/(?:[^/]+)\/status(?:es)?\/\d+/i;
@@ -69,7 +64,8 @@ const SOURCE_DOMAINS: Record<string, string[]> = {
   instagram: ['instagram.com'],
 };
 
-function canManage(guild: NonNullable<Interactive['guild']>, member: GuildMember): boolean {
+function canManage(client: Client, guild: NonNullable<Interactive['guild']>, member: GuildMember): boolean {
+  if (isBotOwner(client, member.id)) return true;
   if (isServerOwner(guild, member)) return true;
   if (isAdmin(guild, member)) return true;
   const managers = FixerManager.findAllByGuild(guild.id);
@@ -230,7 +226,7 @@ class ListController {
     if (!interaction.isMessageComponent()) return;
     if (interaction.guild) {
       const member = interaction.member as GuildMember;
-      if (!canManage(interaction.guild, member)) {
+      if (!canManage(interaction.client, interaction.guild, member)) {
         await interaction.reply({ content: t('list.error.no_permission', {}, this.locale), flags: MessageFlags.Ephemeral }).catch(() => {});
         return;
       }
@@ -254,7 +250,7 @@ class ListController {
   async removeAction(interaction: Interactive): Promise<void> {
     if (interaction.guild) {
       const member = interaction.member as GuildMember;
-      if (!canManage(interaction.guild, member)) {
+      if (!canManage(interaction.client, interaction.guild, member)) {
         await interaction.reply({ content: t('list.error.no_permission', {}, this.locale), flags: MessageFlags.Ephemeral }).catch(() => {});
         return;
       }
@@ -272,7 +268,7 @@ class ListController {
     if (!interaction.isStringSelectMenu()) return;
     if (interaction.guild) {
       const member = interaction.member as GuildMember;
-      if (!canManage(interaction.guild, member)) {
+      if (!canManage(interaction.client, interaction.guild, member)) {
         await interaction.reply({ content: t('list.error.no_permission', {}, this.locale), flags: MessageFlags.Ephemeral }).catch(() => {});
         return;
       }
@@ -287,7 +283,7 @@ class ListController {
   async linkModal(interaction: ModalSubmitInteraction): Promise<void> {
     if (interaction.guild) {
       const member = interaction.member as GuildMember;
-      if (!canManage(interaction.guild, member)) {
+      if (!canManage(interaction.client, interaction.guild, member)) {
         await interaction.reply({ content: t('list.error.no_permission', {}, this.locale), flags: MessageFlags.Ephemeral }).catch(() => {});
         return;
       }

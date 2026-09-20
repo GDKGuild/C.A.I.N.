@@ -1,8 +1,14 @@
-import { CustomWebsite, Guild } from './db';
+import { CustomWebsite, FixerSelection, Guild } from './db';
 import { Fixer, getFixers, nextFixerIndex } from './fixers';
 
 export function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+const NAME_MAP: Record<string, string> = { twitter: 'Twitter/X', instagram: 'Instagram' };
+
+export function nameOf(cls: typeof GenericWebsiteLink): string {
+  return NAME_MAP[cls.id] ?? (cls.hypertextLabel || cls.id);
 }
 
 function generateRegex(domainNames: string | string[], route: string, params: string[] | null = null): RegExp {
@@ -220,7 +226,17 @@ export class GenericWebsiteLink extends WebsiteLink {
       .map<Fixer>((custom) => ({ domain: custom.fix_domain, name: custom.fix_domain }));
     const fixers = registry.length > 0 ? [...registry, ...customs] : [];
     if (fixers.length > 0) {
-      const fixerIndex = this.fixerOverride ?? nextFixerIndex(this.staticC.id, fixers, this.guild.fixer_strategy);
+      let fixerIndex = this.fixerOverride;
+      if (fixerIndex === null) {
+        const selection = FixerSelection.findByGuildAndWebsite(this.guild.id, this.staticC.id);
+        if (selection) {
+          const selected = fixers.findIndex((f) => f.domain === selection.fix_domain);
+          if (selected !== -1) fixerIndex = selected;
+        }
+        if (fixerIndex === null) {
+          fixerIndex = nextFixerIndex(this.staticC.id, fixers, this.guild.fixer_strategy);
+        }
+      }
       const fixer = fixers[fixerIndex];
       this.fixerIndex = fixerIndex;
       this.fixerCount = fixers.length;
