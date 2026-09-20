@@ -13,3 +13,4 @@ log.txt
 bot.log
 bot.err
 bot.pid
+tests/
