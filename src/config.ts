@@ -15,3 +15,10 @@ export const LINKS: Record<string, string> = {
 };
 
 export const TOKEN: string = process.env.DISCORD_TOKEN ?? '';
+
+export const BOT_OWNER_IDS: Set<string> = new Set(
+  (process.env.BOT_OWNER_ID ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+);

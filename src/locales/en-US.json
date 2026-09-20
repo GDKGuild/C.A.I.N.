@@ -20,6 +20,7 @@
   "settings.description": "Select a setting to view its details",
   "settings.placeholder": "Select a setting",
   "settings.error": "An unexpected error occurred while rendering this view.",
+  "settings.error.permission": "Only the server owner and Administrators can use this command.",
   "settings.perms.scope": " in %{scope}",
   "settings.perms.label": "\n\nPermissions in %{channel}:\n",
   "settings.perms.missing_label": "\n\n**Missing permissions:**\n",

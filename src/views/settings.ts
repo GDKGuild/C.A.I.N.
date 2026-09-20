@@ -16,7 +16,6 @@ import {
   MessageFlags,
   ModalBuilder,
   ModalSubmitInteraction,
-  PermissionFlagsBits,
   Role,
   RoleSelectMenuBuilder,
   StringSelectMenuBuilder,
@@ -30,6 +29,7 @@ import { CustomWebsite, Filter, FilterTable, FixerManager, Guild as GuildModel, 
 import { FIXER_STRATEGIES } from '../fixers';
 import { EMOJI, LINKS } from '../config';
 import { t } from '../i18n';
+import { canUseSettings, denySettings, isAdmin, isServerOwner } from '../permissions';
 import { boolString, formatPerms, isMissingPerm, mentionOf, setEmbedFooter } from '../utils';
 
 const ORIGINAL_MESSAGES: OriginalMessage[] = ['nothing', 'remove_embeds', 'delete'];
@@ -1687,10 +1687,7 @@ class FixerManagersSetting extends BaseSetting {
     const guild = interaction.guild;
     const member = interaction.member as GuildMember | null;
     if (!guild || !member) return false;
-    const isAdmin = [...member.roles.cache.keys()].some((id) =>
-      guild.roles.cache.get(id)?.permissions.has(PermissionFlagsBits.Administrator),
-    );
-    if (guild.ownerId === member.id || isAdmin) return true;
+    if (isServerOwner(guild, member) || isAdmin(guild, member)) return true;
     await interaction
       .reply({ content: t('settings.fixer_managers.error.permission'), flags: MessageFlags.Ephemeral })
       .catch(() => {});
@@ -1932,6 +1929,12 @@ function viewKey(interaction: ChatInputCommandInteraction | Interactive): string
 }
 
 export async function handleSettingsInteraction(interaction: Interactive): Promise<void> {
+  const guild = interaction.guild;
+  const member = interaction.member as GuildMember | null;
+  if (guild && member && !canUseSettings(interaction.client, guild, member)) {
+    await denySettings(interaction);
+    return;
+  }
   const view = activeViews.get(viewKey(interaction));
   if (!view) {
     if (interaction.isMessageComponent()) await interaction.deferUpdate().catch(() => {});

@@ -11,7 +11,6 @@ import {
   MessageFlags,
   ModalBuilder,
   ModalSubmitInteraction,
-  PermissionsBitField,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
   TextInputBuilder,
@@ -22,6 +21,7 @@ import {
 import { CustomFixer, FixerManager, Guild as GuildModel } from '../db';
 import { getFixers } from '../fixers';
 import { t } from '../i18n';
+import { isAdmin, isServerOwner } from '../permissions';
 import { packRows } from '../views/settings';
 import { websites, CustomLink, GenericWebsiteLink } from '../websites';
 
@@ -69,18 +69,9 @@ const SOURCE_DOMAINS: Record<string, string[]> = {
   instagram: ['instagram.com'],
 };
 
-function memberIsAdmin(guild: NonNullable<Interactive['guild']>, member: GuildMember): boolean {
-  // ponytail: derive from guild roles cache, not member.permissions — the latter can
-  // hold a stale cached bitfield from a REST hydrate done before the admin grant.
-  for (const id of member.roles.cache.keys()) {
-    if (guild.roles.cache.get(id)?.permissions.has(PermissionsBitField.Flags.Administrator)) return true;
-  }
-  return false;
-}
-
 function canManage(guild: NonNullable<Interactive['guild']>, member: GuildMember): boolean {
-  if (guild.ownerId === member.id) return true;
-  if (memberIsAdmin(guild, member)) return true;
+  if (isServerOwner(guild, member)) return true;
+  if (isAdmin(guild, member)) return true;
   const managers = FixerManager.findAllByGuild(guild.id);
   if (managers.some((m) => m.type === 'member' && m.target_id === member.id)) return true;
   const roleIds = new Set(member.roles.cache.keys());
