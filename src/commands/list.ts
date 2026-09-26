@@ -138,7 +138,7 @@ class ListController {
 
   constructor(interaction: ChatInputCommandInteraction) {
     if (!interaction.guild) throw new Error('list view requires a guild');
-    this.guild = GuildModel.find(interaction.guild.id)!;
+    this.guild = GuildModel.findOrCreate(interaction.guild.id);
     this.key = `${interaction.guild.id}:${interaction.user.id}`;
     this.locale = interaction.locale;
   }
