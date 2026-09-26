@@ -36,7 +36,7 @@
     "fixtweet": "\ud83e\udd16",
     "role": "\ud83c\udfad"
   },
-  "invite_link": "https://discord.com/oauth2/authorize?client_id={id}",
+  "invite_link": "https://discord.com/oauth2/authorize?client_id=1548678616806723584&permissions=275414871040&integration_type=0&scope=bot+applications.commands",
   "original_link": "https://github.com/Kyrela/FixTweetBot",
   "repo_link": "https://github.com/GDKGuild/C.A.I.N.",
   "support_link": "https://discord.gg/3ej9JrkF3U"
