@@ -1,13 +1,14 @@
-import { ChatInputCommandInteraction, Client, REST, Routes, SlashCommandBuilder } from 'discord.js';
+import { ChatInputCommandInteraction, Client, REST, Routes, SlashCommandBuilder, SlashCommandOptionsOnlyBuilder } from 'discord.js';
 import config from '../../config.json';
 import { t } from '../i18n';
 import { TOKEN } from '../config';
 import { aboutCommand } from './about';
 import { settingsCommand, settingsCommandBuilder } from './settings';
 import { listCommand } from './list';
+import { toggleCommand, toggleCommandBuilder } from './toggle';
 
 export interface Command {
-  builder: SlashCommandBuilder;
+  builder: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder;
   handler: (client: Client, interaction: ChatInputCommandInteraction) => Promise<void>;
 }
 
@@ -35,6 +36,11 @@ export function getCommands(): Command[] {
       .setDescription(t('list.command.description'))
       .setDMPermission(false),
     handler: listCommand,
+  });
+
+  commands.push({
+    builder: toggleCommandBuilder(),
+    handler: toggleCommand,
   });
 
   return commands;
