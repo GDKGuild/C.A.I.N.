@@ -6,6 +6,7 @@ import { aboutCommand } from './about';
 import { settingsCommand, settingsCommandBuilder } from './settings';
 import { listCommand } from './list';
 import { toggleCommand, toggleCommandBuilder } from './toggle';
+import { eventCommand, eventCommandBuilder } from './event';
 
 export interface Command {
   builder: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder;
@@ -42,6 +43,14 @@ export function getCommands(): Command[] {
     builder: toggleCommandBuilder(),
     handler: toggleCommand,
   });
+
+  const eventName = config.event_command.name;
+  if (config.event_command.enabled && !commands.some((c) => c.builder.name === eventName)) {
+    commands.push({
+      builder: eventCommandBuilder(),
+      handler: eventCommand,
+    });
+  }
 
   return commands;
 }

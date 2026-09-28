@@ -3,6 +3,10 @@
   "version": "3.3.8",
   "color": 1940464,
   "about_command": true,
+  "event_command": {
+    "enabled": true,
+    "name": "rape"
+  },
   "emoji": {
     "github": "\ud83d\udda5\ufe0f",
     "add": "\u2795",

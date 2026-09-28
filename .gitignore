@@ -14,3 +14,5 @@ bot.log
 bot.err
 bot.pid
 tests/
+gifs/
+*.md
