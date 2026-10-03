@@ -1,6 +1,6 @@
 {
   "description": "C.A.I.N., the Content And Image Normalizer — a Discord bot that fixes broken social media embeds.",
-  "version": "3.3.8",
+  "version": "2.0.0",
   "color": 1940464,
   "about_command": true,
   "event_command": {
