@@ -2,7 +2,14 @@ import { Client, Message } from 'discord.js';
 import { Filter, Guild } from '../db';
 import { getEmbeddableUrls, parse } from '../markdown';
 import { escapeRe } from '../websites';
-import { filterFixableLinks, fixEmbeds } from '../linkFix';
+import { filterFixableLinks, fixEmbeds, waitForNativeEmbeds } from '../linkFix';
+
+const PLAIN_HOSTS = new Set(['twitter.com', 'x.com', 'pixiv.net']);
+const FIXER_HOSTS = new Set(['fxtwitter.com', 'fixupx.com', 'vxtwitter.com']);
+
+function hostnameOf(url: string): string {
+  return new URL(url).hostname;
+}
 
 export function handleMessageCreate(client: Client, message: Message): void {
   void (async () => {
@@ -37,7 +44,7 @@ export async function onMessageCreate(client: Client, message: Message): Promise
 
   if (!Filter.findGetEnabled('text_channels', guild.id, { id: message.channel.id })) return;
 
-  if (message.member) {
+  if (message.member && !guild.force_fix) {
     const memberEnabled = Filter.findGetEnabled('members', guild.id, {
       id: message.member.id,
       bot: message.author.bot,
@@ -49,5 +56,26 @@ export async function onMessageCreate(client: Client, message: Message): Promise
 
   if (message.webhookId !== null && !guild.webhooks) return;
 
-  await fixEmbeds(message, guild, links, client);
+  const kept: Array<(typeof links)[number]> = [];
+  const fixerLinks: Array<(typeof links)[number]> = [];
+  for (const link of links) {
+    const host = hostnameOf(link.url);
+    if (PLAIN_HOSTS.has(host)) {
+      kept.push(link);
+    } else if (FIXER_HOSTS.has(host)) {
+      fixerLinks.push(link);
+    } else {
+      kept.push(link);
+    }
+  }
+
+  if (fixerLinks.length > 0 && !(await waitForNativeEmbeds(message, 3000))) {
+    for (const link of fixerLinks) {
+      link.startAtNextFixer(hostnameOf(link.url));
+      kept.push(link);
+    }
+  }
+
+  if (kept.length === 0) return;
+  await fixEmbeds(message, guild, kept, client);
 }
