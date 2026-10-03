@@ -105,6 +105,8 @@ export abstract class WebsiteLink {
     this.fixerOverride = null;
     return out;
   }
+
+  startAtNextFixer(_postedDomain: string): void {}
 }
 
 export class GenericWebsiteLink extends WebsiteLink {
@@ -220,11 +222,7 @@ export class GenericWebsiteLink extends WebsiteLink {
   }
 
   async getFixedUrl(): Promise<[string | null, string | null]> {
-    const registry = getFixers(this.staticC.id);
-    const customs = this.guild.custom_fixers
-      .filter((custom) => custom.website === this.staticC.id)
-      .map<Fixer>((custom) => ({ domain: custom.fix_domain, name: custom.fix_domain }));
-    const fixers = registry.length > 0 ? [...registry, ...customs] : [];
+    const fixers = this.resolveFixerList();
     if (fixers.length > 0) {
       let fixerIndex = this.fixerOverride;
       if (fixerIndex === null) {
@@ -248,6 +246,22 @@ export class GenericWebsiteLink extends WebsiteLink {
       this.getPatchedUrl(this.staticC.fixDomain, this.routeFixSubdomain(), this.routeFixPostPathSegments()),
       this.staticC.fixerName,
     ];
+  }
+
+  protected resolveFixerList(): Array<{ domain: string; name: string } & Partial<Fixer>> {
+    const registry = getFixers(this.staticC.id);
+    const customs = this.guild.custom_fixers
+      .filter((custom) => custom.website === this.staticC.id)
+      .map<Fixer>((custom) => ({ domain: custom.fix_domain, name: custom.fix_domain }));
+    return registry.length > 0 ? [...registry, ...customs] : [];
+  }
+
+  startAtNextFixer(postedDomain: string): void {
+    const fixers = this.resolveFixerList();
+    if (fixers.length <= 1) return;
+    const index = fixers.findIndex((f) => f.domain === postedDomain);
+    if (index === -1) return;
+    this.fixerOverride = (index + 1) % fixers.length;
   }
 
   private currentView(): string {
@@ -330,7 +344,7 @@ export class TwitterLink extends GenericWebsiteLink {
   static isTranslation = true;
   static subdomains: Record<string, string> = { normal: '', gallery: 'g.', text_only: 't.', direct_media: 'd.' };
   static routes = generateRoutes(
-    ['twitter.com', 'x.com', 'nitter.net', 'xcancel.com', 'nitter.poast.org', 'nitter.privacyredirect.com', 'lightbrd.com', 'nitter.space', 'nitter.tiekoetter.com'],
+    ['twitter.com', 'x.com', 'nitter.net', 'xcancel.com', 'nitter.poast.org', 'nitter.privacyredirect.com', 'lightbrd.com', 'nitter.space', 'nitter.tiekoetter.com', 'fxtwitter.com', 'fixupx.com', 'vxtwitter.com'],
     {
       '/i/status/:id': null,
       '/:username/status/:id': null,

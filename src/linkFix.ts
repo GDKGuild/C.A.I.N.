@@ -3,6 +3,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   Client,
+  Embed,
   Message,
   MessageComponentInteraction,
   MessageFlags,
@@ -196,6 +197,28 @@ export async function waitForEmbed(message: Message, client: Client): Promise<bo
   } catch {
     return message.embeds.length > 0;
   }
+}
+
+export function isEmbedHealthy(embeds: Embed[]): boolean {
+  return embeds.some((embed) => embed.image || embed.thumbnail || embed.video);
+}
+
+export async function waitForNativeEmbeds(message: Message, time: number): Promise<boolean> {
+  if (isEmbedHealthy(message.embeds)) return true;
+  let embeds = message.embeds;
+  const filter = (before: Message | PartialMessage, after: Message | PartialMessage) => {
+    if (after.id === message.id) embeds = (after as Message).embeds;
+    return (
+      after.id === message.id &&
+      (after as Message).embeds.length > ((before as Message)?.embeds.length ?? 0)
+    );
+  };
+  try {
+    await waitForMessageUpdate(message.client, filter, time);
+  } catch {
+    // timeout: fall through and judge the last observed embeds
+  }
+  return isEmbedHealthy(embeds);
 }
 
 function waitForMessageUpdate(

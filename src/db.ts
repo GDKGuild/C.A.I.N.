@@ -35,6 +35,7 @@ export interface GuildRow {
   reply_silently: number;
   reply_as_original_author_replica: number;
   webhooks: number;
+  force_fix: number;
   twitter: number;
   twitter_tr: number;
   twitter_view: string;
@@ -114,6 +115,7 @@ export class Guild {
   reply_silently: boolean;
   reply_as_original_author_replica: boolean;
   webhooks: boolean;
+  force_fix: boolean;
   twitter: boolean;
   twitter_tr: boolean;
   twitter_view: FxEmbedView;
@@ -170,6 +172,7 @@ export class Guild {
     this.reply_silently = !!row.reply_silently;
     this.reply_as_original_author_replica = !!row.reply_as_original_author_replica;
     this.webhooks = !!row.webhooks;
+    this.force_fix = !!row.force_fix;
     this.twitter = !!row.twitter;
     this.twitter_tr = !!row.twitter_tr;
     this.twitter_view = row.twitter_view as FxEmbedView;
@@ -242,8 +245,8 @@ export class Guild {
 }
 
 const getGuildStmt = db.prepare('SELECT * FROM guilds WHERE id = ?');
-const insertGuildStmt = db.prepare(`INSERT INTO guilds (id, keywords, keywords_use_allow_list, text_channels_use_allow_list, members_use_allow_list, roles_use_allow_list, roles_use_any_rule, lang, original_message, reply_to_message, reply_silently, reply_as_original_author_replica, webhooks, twitter, twitter_tr, twitter_view, instagram, instagram_view, instagram_tr, tiktok, tiktok_view, reddit, threads, bluesky, bluesky_view, pixiv, ifunny, ifunny_view, ifunny_tr, furaffinity, youtube, mastodon, deviantart, tumblr, facebook, bilibili, twitch, spotify, snapchat, snapchat_view, snapchat_tr, imgur, imgur_view, imgur_tr, weibo, weibo_view, weibo_tr, imageboards, imageboards_view, pinterest, pinterest_view, pinterest_tr, newgrounds, fixer_strategy)
-  VALUES (@id, @keywords, 0, 0, 0, 0, 0, NULL, 'remove_embeds', 0, 1, 0, 0, 1, 0, 'normal', 1, 'normal', 0, 1, 'normal', 1, 1, 1, 'normal', 1, 1, 'normal', 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 'normal', 0, 0, 'normal', 0, 1, 'normal', 0, 1, 'normal', 1, 'normal', 0, 1, 'round_robin')`);
+const insertGuildStmt = db.prepare(`INSERT INTO guilds (id, keywords, keywords_use_allow_list, text_channels_use_allow_list, members_use_allow_list, roles_use_allow_list, roles_use_any_rule, lang, original_message, reply_to_message, reply_silently, reply_as_original_author_replica, webhooks, force_fix, twitter, twitter_tr, twitter_view, instagram, instagram_view, instagram_tr, tiktok, tiktok_view, reddit, threads, bluesky, bluesky_view, pixiv, ifunny, ifunny_view, ifunny_tr, furaffinity, youtube, mastodon, deviantart, tumblr, facebook, bilibili, twitch, spotify, snapchat, snapchat_view, snapchat_tr, imgur, imgur_view, imgur_tr, weibo, weibo_view, weibo_tr, imageboards, imageboards_view, pinterest, pinterest_view, pinterest_tr, newgrounds, fixer_strategy)
+  VALUES (@id, @keywords, 0, 0, 0, 0, 0, NULL, 'remove_embeds', 0, 1, 0, 0, 0, 1, 0, 'normal', 1, 'normal', 0, 1, 'normal', 1, 1, 1, 'normal', 1, 1, 'normal', 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 'normal', 0, 0, 'normal', 0, 1, 'normal', 0, 1, 'normal', 1, 'normal', 0, 1, 'round_robin')`);
 
 export function insertGuild(id: string): Guild {
   insertGuildStmt.run({ id, keywords: JSON.stringify(['fxignore']) });
@@ -614,6 +617,7 @@ export function initDb(): void {
       reply_silently INTEGER NOT NULL DEFAULT 1,
       reply_as_original_author_replica INTEGER NOT NULL DEFAULT 0,
       webhooks INTEGER NOT NULL DEFAULT 0,
+      force_fix INTEGER NOT NULL DEFAULT 0,
       twitter INTEGER NOT NULL DEFAULT 1,
       twitter_tr INTEGER NOT NULL DEFAULT 0,
       twitter_view TEXT NOT NULL DEFAULT 'normal',
@@ -713,5 +717,8 @@ export function initDb(): void {
   const cols = db.prepare('PRAGMA table_info(guilds)').all() as Array<{ name: string }>;
   if (!cols.some((c) => c.name === 'fixer_strategy')) {
     db.exec(`ALTER TABLE guilds ADD COLUMN fixer_strategy TEXT NOT NULL DEFAULT 'round_robin'`);
+  }
+  if (!cols.some((c) => c.name === 'force_fix')) {
+    db.exec(`ALTER TABLE guilds ADD COLUMN force_fix INTEGER NOT NULL DEFAULT 0`);
   }
 }

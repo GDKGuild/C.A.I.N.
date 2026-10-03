@@ -1236,6 +1236,52 @@ class WebhooksSetting extends BaseSetting {
   }
 }
 
+class ForceFixSetting extends BaseSetting {
+  name = 'settings.force_fix.name';
+  id = 'force_fix';
+  description = 'settings.force_fix.description';
+  emoji = EMOJI.wrench;
+
+  state: boolean;
+
+  constructor(interaction: ChatInputCommandInteraction | MessageComponentInteraction, view: SettingsView, ctx: DataElements) {
+    super(interaction, view, ctx);
+    this.state = boolString(this.guild.force_fix) === 'true';
+  }
+
+  async embed(): Promise<EmbedBuilder> {
+    const embed = new EmbedBuilder()
+      .setTitle(`${this.emoji} ${t(this.name)}`)
+      .setDescription(t('settings.force_fix.content', { state: t(`settings.force_fix.state.${boolString(this.state)}`) }));
+    setEmbedFooter(this.bot, embed);
+    return embed;
+  }
+
+  async option(): Promise<StringSelectMenuOptionBuilder> {
+    const option = new StringSelectMenuOptionBuilder()
+      .setLabel((this.state ? '🟢 ' : '🔴 ') + t(this.name))
+      .setValue(this.id)
+      .setDescription(t(this.description));
+    if (this.emoji) option.setEmoji(this.emoji);
+    return option;
+  }
+
+  async items(): Promise<Array<RowItem>> {
+    const item = button(
+      this.state ? ButtonStyle.Primary : ButtonStyle.Secondary,
+      t(`settings.force_fix.button.${boolString(this.state)}`),
+    ).setCustomId(this.id);
+    this.view.register(this.id, (i) => this.action(i));
+    return [{ builder: item }];
+  }
+
+  async action(interaction: Interactive): Promise<void> {
+    this.state = !this.state;
+    this.guild.update({ force_fix: this.state });
+    await this.view.refresh(interaction);
+  }
+}
+
 export class TwitterSetting extends WebsiteBaseSetting {
   id = 'twitter';
   name = 'Twitter';
@@ -1891,6 +1937,7 @@ export class SettingsView {
       new OriginalMessageBehaviorSetting(interaction, this, this.ctx),
       new ReplyMethodSetting(interaction, this, this.ctx),
       new WebhooksSetting(interaction, this, this.ctx),
+      new ForceFixSetting(interaction, this, this.ctx),
       new FixerStrategySetting(interaction, this, this.ctx),
       new FixerManagersSetting(interaction, this, this.ctx),
     ];
