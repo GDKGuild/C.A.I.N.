@@ -16,7 +16,7 @@ import {
   Webhook,
   WebhookMessageCreateOptions,
 } from 'discord.js';
-import { Guild } from './db';
+import { Filter, Guild } from './db';
 import { type EmbeddableUrl } from './markdown';
 import { websites, type WebsiteLink } from './websites';
 import { groupItems, safeSend } from './utils';
@@ -281,6 +281,15 @@ interface RevertEntry {
 const revertRegistry = new Map<string, RevertEntry>();
 const REVERT_PREFIX = 'fixer_revert_';
 
+export const KEEP_OFFER_THRESHOLD = 5;
+export type PromptVariant = 'skip' | 'offer' | 'prompt';
+
+export function promptVariant(count: number, keepAlways: boolean): PromptVariant {
+  if (keepAlways) return 'skip';
+  if (count >= KEEP_OFFER_THRESHOLD) return 'offer';
+  return 'prompt';
+}
+
 export function revertContent(links: WebsiteLink[]): string {
   return groupItems(links, 2000, '\n', (link) => link.url)
     .map(([content]) => content)
@@ -292,27 +301,45 @@ export function isRevertInteractionId(customId: string): boolean {
 }
 
 async function registerRevertPrompt(originalMessage: Message, allSent: Array<[Message, WebsiteLink[]]>, webhook: Webhook | null): Promise<void> {
+  const guildId = originalMessage.guildId;
+  const isBot = originalMessage.author.bot;
+  const member = !isBot && guildId ? Filter.find('members', guildId, { id: originalMessage.author.id }) : undefined;
+  const variant = isBot ? 'prompt' : promptVariant(member?.prompt_count ?? 0, member?.keep_always ?? false);
+  if (variant === 'skip') return;
+
   const token = Math.random().toString(36).slice(2, 10);
   const fixed = allSent.map(([msg, groupLinks]) => ({ message: msg, content: revertContent(groupLinks) }));
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`${REVERT_PREFIX}keep_${token}`).setLabel(t('revert.button.keep')).setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`${REVERT_PREFIX}do_${token}`).setLabel(t('revert.button.revert')).setStyle(ButtonStyle.Danger),
-  );
-  const [ok, prompt] = await safeSend(allSent[0][0].reply({ content: t('revert.prompt'), components: [row] }), {
-    forbidden: true,
-  });
+  const row =
+    variant === 'offer'
+      ? new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(`${REVERT_PREFIX}offer_yes_${token}`).setLabel(t('revert.offer.yes')).setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId(`${REVERT_PREFIX}offer_no_${token}`).setLabel(t('revert.offer.no')).setStyle(ButtonStyle.Secondary),
+        )
+      : new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(`${REVERT_PREFIX}keep_${token}`).setLabel(t('revert.button.keep')).setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId(`${REVERT_PREFIX}do_${token}`).setLabel(t('revert.button.revert')).setStyle(ButtonStyle.Danger),
+        );
+  const content = variant === 'offer' ? t('revert.offer.title') : t('revert.prompt');
+  const [ok, prompt] = await safeSend(allSent[0][0].reply({ content, components: [row] }), { forbidden: true });
   if (!ok || !prompt) return;
   const timer = setTimeout(() => {
     void prompt.delete().catch(() => {});
     revertRegistry.delete(token);
   }, 60_000);
   revertRegistry.set(token, { senderId: originalMessage.author.id, fixed, webhook, timer });
+  if (variant === 'prompt' && !isBot && guildId) {
+    Filter.findOrCreate('members', guildId, { id: originalMessage.author.id, bot: false }).update({
+      prompt_count: (member?.prompt_count ?? 0) + 1,
+    });
+  }
 }
 
 export async function handleRevertInteraction(interaction: MessageComponentInteraction): Promise<void> {
-  const token = interaction.customId.replace(`${REVERT_PREFIX}keep_`, '').replace(`${REVERT_PREFIX}do_`, '');
+  const variants = ['offer_yes', 'offer_no', 'keep', 'do'] as const;
+  const variant = variants.find((v) => interaction.customId.startsWith(`${REVERT_PREFIX}${v}_`));
+  const token = variant ? interaction.customId.slice(`${REVERT_PREFIX}${variant}_`.length) : '';
   const entry = revertRegistry.get(token);
-  if (!entry) {
+  if (!entry || !variant) {
     await interaction.deferUpdate().catch(() => {});
     return;
   }
@@ -324,7 +351,7 @@ export async function handleRevertInteraction(interaction: MessageComponentInter
   }
   clearTimeout(entry.timer);
   revertRegistry.delete(token);
-  if (interaction.customId.startsWith(`${REVERT_PREFIX}do_`)) {
+  if (variant === 'do') {
     await Promise.all(
       entry.fixed.map(async ({ message, content }) => {
         if (entry.webhook?.token) {
@@ -339,6 +366,13 @@ export async function handleRevertInteraction(interaction: MessageComponentInter
         }
       }),
     );
+  } else if (variant === 'offer_yes') {
+    const guildId = interaction.guildId;
+    if (guildId) Filter.findOrCreate('members', guildId, { id: interaction.user.id, bot: false }).update({ keep_always: true });
+    await interaction.reply({ content: t('revert.offer.enabled', {}, interaction.locale), flags: MessageFlags.Ephemeral }).catch(() => {});
+  } else if (variant === 'offer_no') {
+    const guildId = interaction.guildId;
+    if (guildId) Filter.findOrCreate('members', guildId, { id: interaction.user.id, bot: false }).update({ prompt_count: 0 });
   }
   await safeSend((interaction.message as Message).delete(), { notFound: true, forbidden: true });
 }

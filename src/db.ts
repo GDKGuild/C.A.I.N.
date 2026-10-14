@@ -268,6 +268,8 @@ export class Filter {
   on_deny_list: boolean;
   on_allow_list: boolean;
   bot: boolean;
+  keep_always: boolean;
+  prompt_count: number;
 
   constructor(table: FilterTable, row: FilterRow) {
     this.table = table;
@@ -276,6 +278,18 @@ export class Filter {
     this.on_deny_list = !!row['on_deny_list'];
     this.on_allow_list = !!row['on_allow_list'];
     this.bot = !!row['bot'];
+    this.keep_always = !!row['keep_always'];
+    this.prompt_count = Number(row['prompt_count'] ?? 0);
+  }
+
+  static find(
+    table: FilterTable,
+    guildId: string,
+    dElement: { id?: string | bigint; user?: { id: string | bigint } },
+  ): Filter | undefined {
+    const id = table === 'members' ? String(dElement.user?.id ?? dElement.id) : String(dElement.id);
+    const row = findFilterStmt(table, id).get(id, guildId) as FilterRow | undefined;
+    return row ? new Filter(table, row) : undefined;
   }
 
   static findOrCreate(
@@ -326,16 +340,18 @@ export class Filter {
     }
   }
 
-  update(fields: Partial<{ on_deny_list: boolean; on_allow_list: boolean; bot: boolean }>): void {
+  update(fields: Partial<{ on_deny_list: boolean; on_allow_list: boolean; bot: boolean; keep_always: boolean; prompt_count: number }>): void {
     const idCol = this.table === 'members' ? 'user_id' : 'id';
     const wrote = updateRow(
       this.table,
       { [idCol]: this.id, guild_id: this.guild_id },
       fields,
       (key, value) => {
-        if (typeof value === 'boolean' && (this.table === 'members' || key !== 'bot')) {
-          return [key, value ? 1 : 0];
+        if (typeof value === 'boolean') {
+          if (this.table === 'members' || key !== 'bot') return [key, value ? 1 : 0];
+          return null;
         }
+        if (typeof value === 'number' && this.table === 'members') return [key, value];
         return null;
       },
     );
@@ -672,7 +688,9 @@ export function initDb(): void {
       guild_id TEXT NOT NULL,
       bot INTEGER NOT NULL DEFAULT 0,
       on_deny_list INTEGER NOT NULL DEFAULT 0,
-      on_allow_list INTEGER NOT NULL DEFAULT 0
+      on_allow_list INTEGER NOT NULL DEFAULT 0,
+      prompt_count INTEGER NOT NULL DEFAULT 0,
+      keep_always INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS roles (
       id TEXT PRIMARY KEY,
@@ -720,5 +738,12 @@ export function initDb(): void {
   }
   if (!cols.some((c) => c.name === 'force_fix')) {
     db.exec(`ALTER TABLE guilds ADD COLUMN force_fix INTEGER NOT NULL DEFAULT 0`);
+  }
+  const memberCols = db.prepare('PRAGMA table_info(members)').all() as Array<{ name: string }>;
+  if (!memberCols.some((c) => c.name === 'prompt_count')) {
+    db.exec(`ALTER TABLE members ADD COLUMN prompt_count INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!memberCols.some((c) => c.name === 'keep_always')) {
+    db.exec(`ALTER TABLE members ADD COLUMN keep_always INTEGER NOT NULL DEFAULT 0`);
   }
 }
