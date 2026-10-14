@@ -35,10 +35,13 @@ interface RowItem {
 
 const TWITTER_PATH = /^\/(?:[^/]+)\/status(?:es)?\/\d+/i;
 const INSTAGRAM_PATH = /^\/(p|reel|reels|tv)\/[A-Za-z0-9_-]+/;
+const FACEBOOK_PATH =
+  /^\/(?:[^/]+\/(?:posts|videos)\/|share\/|watch(?:\/|\?|$)|photo(?:\.php)?(?:\/|\?|$)|story\.php|permalink\.php|groups\/)/i;
 
 function detectWebsite(url: URL): string | null {
   if (TWITTER_PATH.test(url.pathname)) return 'twitter';
   if (INSTAGRAM_PATH.test(url.pathname)) return 'instagram';
+  if (FACEBOOK_PATH.test(url.pathname)) return 'facebook';
   return null;
 }
 
@@ -62,6 +65,7 @@ export function parseFixerLink(raw: string): { website: string; domain: string }
 const SOURCE_DOMAINS: Record<string, string[]> = {
   twitter: ['twitter.com', 'x.com'],
   instagram: ['instagram.com'],
+  facebook: ['facebook.com', 'm.facebook.com', 'fb.com', 'fb.watch'],
 };
 
 function canManage(client: Client, guild: NonNullable<Interactive['guild']>, member: GuildMember): boolean {

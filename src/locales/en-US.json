@@ -157,7 +157,7 @@
   "list.add_modal.title": "Add a fixer",
   "list.add_modal.label": "Fixer link",
   "list.add_modal.placeholder": "https://fixupx.com/user/status/123",
-  "list.add_modal.error.invalid_url": "That doesn't look like a valid Twitter/Instagram link that uses a fixer. Link to a fixed version of a post (e.g. `https://fixupx.com/user/status/123`).",
+  "list.add_modal.error.invalid_url": "That doesn't look like a valid Twitter/Instagram/Facebook link that uses a fixer. Link to a fixed version of a post (e.g. `https://fixupx.com/user/status/123`).",
   "list.add_modal.error.duplicate": "That fixer is already registered for this website.",
   "list.add_modal.error.own_domain": "That's the original site domain. A fixer must use a different domain.",
   "list.add_modal.error.limit": "You can add up to 4 fixers per website.",

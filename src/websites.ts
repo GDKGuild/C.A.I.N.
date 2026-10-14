@@ -253,7 +253,7 @@ export class GenericWebsiteLink extends WebsiteLink {
     const customs = this.guild.custom_fixers
       .filter((custom) => custom.website === this.staticC.id)
       .map<Fixer>((custom) => ({ domain: custom.fix_domain, name: custom.fix_domain }));
-    return registry.length > 0 ? [...registry, ...customs] : [];
+    return [...registry, ...customs];
   }
 
   startAtNextFixer(postedDomain: string): void {
