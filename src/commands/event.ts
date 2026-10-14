@@ -2,7 +2,8 @@ import { ChatInputCommandInteraction, Client, SlashCommandBuilder, SlashCommandO
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import config from '../../config.json';
-import { t } from '../i18n';
+import { t, resolveLocale } from '../i18n';
+import { Guild as GuildModel } from '../db';
 
 const GIFS_DIR = path.join(__dirname, '..', '..', 'gifs');
 
@@ -48,6 +49,8 @@ export async function eventCommand(client: Client, interaction: ChatInputCommand
   const botName = client.user?.username ?? 'C.A.I.N.';
   const selected = interaction.options.getUser('user');
   const context = healContext(selected ? selected.id : null, client.user?.id ?? '');
+  const guild = interaction.guildId ? GuildModel.find(interaction.guildId) : null;
+  const locale = resolveLocale(guild, interaction.locale);
 
   let actor: string;
   let target: string;
@@ -56,10 +59,10 @@ export async function eventCommand(client: Client, interaction: ChatInputCommand
     target = botName;
   } else {
     actor = botName;
-    target = selected ? selected.toString() : t('event.you', {}, interaction.locale);
+    target = selected ? selected.toString() : t('event.you', {}, locale);
   }
 
-  const content = t(pickDialogueKey(context), { actor, target }, interaction.locale);
+  const content = t(pickDialogueKey(context), { actor, target }, locale);
 
   const gif = pickGif(listGifs(GIFS_DIR));
   if (gif) {

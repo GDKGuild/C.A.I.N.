@@ -30,6 +30,7 @@ export interface GuildRow {
   roles_use_allow_list: number;
   roles_use_any_rule: number;
   lang: string | null;
+  ui_language: string | null;
   original_message: string;
   reply_to_message: number;
   reply_silently: number;
@@ -110,6 +111,7 @@ export class Guild {
   roles_use_allow_list: boolean;
   roles_use_any_rule: boolean;
   lang: string | null;
+  ui_language: string | null;
   original_message: OriginalMessage;
   reply_to_message: boolean;
   reply_silently: boolean;
@@ -167,6 +169,7 @@ export class Guild {
     this.roles_use_allow_list = !!row.roles_use_allow_list;
     this.roles_use_any_rule = !!row.roles_use_any_rule;
     this.lang = row.lang;
+    this.ui_language = row.ui_language ?? null;
     this.original_message = row.original_message as OriginalMessage;
     this.reply_to_message = !!row.reply_to_message;
     this.reply_silently = !!row.reply_silently;
@@ -628,6 +631,7 @@ export function initDb(): void {
       roles_use_allow_list INTEGER NOT NULL DEFAULT 0,
       roles_use_any_rule INTEGER NOT NULL DEFAULT 0,
       lang TEXT,
+      ui_language TEXT,
       original_message TEXT NOT NULL DEFAULT 'remove_embeds',
       reply_to_message INTEGER NOT NULL DEFAULT 0,
       reply_silently INTEGER NOT NULL DEFAULT 1,
@@ -738,6 +742,9 @@ export function initDb(): void {
   }
   if (!cols.some((c) => c.name === 'force_fix')) {
     db.exec(`ALTER TABLE guilds ADD COLUMN force_fix INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!cols.some((c) => c.name === 'ui_language')) {
+    db.exec(`ALTER TABLE guilds ADD COLUMN ui_language TEXT`);
   }
   const memberCols = db.prepare('PRAGMA table_info(members)').all() as Array<{ name: string }>;
   if (!memberCols.some((c) => c.name === 'prompt_count')) {

@@ -28,7 +28,7 @@ import {
 import { CustomWebsite, Filter, FilterTable, FixerManager, FixerSelection, Guild as GuildModel, OriginalMessage } from '../db';
 import { FIXER_STRATEGIES, getFixers } from '../fixers';
 import { EMOJI, LINKS } from '../config';
-import { t } from '../i18n';
+import { SUPPORTED_LOCALES, t } from '../i18n';
 import { canUseSettings, denySettings, isAdmin, isBotOwner, isServerOwner } from '../permissions';
 import { boolString, formatPerms, isMissingPerm, mentionOf, setEmbedFooter } from '../utils';
 import { websites, CustomLink, GenericWebsiteLink, nameOf } from '../websites';
@@ -1282,6 +1282,52 @@ class ForceFixSetting extends BaseSetting {
   }
 }
 
+class LanguageSetting extends BaseSetting {
+  name = 'settings.language.name';
+  id = 'language';
+  description = 'settings.language.description';
+  emoji = '🌐';
+
+  private currentLabel(): string {
+    const code = this.guild.ui_language;
+    if (!code) return t('settings.language.auto');
+    return SUPPORTED_LOCALES.find((l) => l.code === code)?.name ?? code;
+  }
+
+  async embed(): Promise<EmbedBuilder> {
+    const embed = new EmbedBuilder()
+      .setTitle(`${this.emoji} ${t(this.name)}`)
+      .setDescription(t('settings.language.content', { language: this.currentLabel() }));
+    setEmbedFooter(this.bot, embed);
+    return embed;
+  }
+
+  async items(): Promise<Array<RowItem>> {
+    const current = this.guild.ui_language ?? '_auto';
+    const selector = new StringSelectMenuBuilder()
+      .setCustomId(this.id)
+      .setMaxValues(1)
+      .addOptions(
+        new StringSelectMenuOptionBuilder()
+          .setLabel(t('settings.language.auto'))
+          .setValue('_auto')
+          .setDefault(current === '_auto'),
+        ...SUPPORTED_LOCALES.map((l) =>
+          new StringSelectMenuOptionBuilder().setLabel(l.name).setValue(l.code).setDefault(current === l.code),
+        ),
+      );
+    this.view.register(this.id, (i) => this.action(i));
+    return [{ builder: selector }];
+  }
+
+  async action(interaction: Interactive): Promise<void> {
+    if (!interaction.isStringSelectMenu()) return;
+    const value = interaction.values[0];
+    this.guild.update({ ui_language: value === '_auto' ? null : value });
+    await this.view.refresh(interaction);
+  }
+}
+
 export class TwitterSetting extends WebsiteBaseSetting {
   id = 'twitter';
   name = 'Twitter';
@@ -1940,6 +1986,7 @@ export class SettingsView {
       new ForceFixSetting(interaction, this, this.ctx),
       new FixerStrategySetting(interaction, this, this.ctx),
       new FixerManagersSetting(interaction, this, this.ctx),
+      new LanguageSetting(interaction, this, this.ctx),
     ];
     this.settings = Object.fromEntries(all.map((s) => [s.id, s]));
     this.selected_id = null;

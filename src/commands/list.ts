@@ -20,7 +20,7 @@ import {
 } from 'discord.js';
 import { CustomFixer, FixerManager, Guild as GuildModel } from '../db';
 import { getFixers } from '../fixers';
-import { t } from '../i18n';
+import { t, resolveLocale } from '../i18n';
 import { isAdmin, isBotOwner, isServerOwner } from '../permissions';
 import { packRows } from '../views/settings';
 import { websites, CustomLink, GenericWebsiteLink, nameOf } from '../websites';
@@ -144,7 +144,7 @@ class ListController {
     if (!interaction.guild) throw new Error('list view requires a guild');
     this.guild = GuildModel.findOrCreate(interaction.guild.id);
     this.key = `${interaction.guild.id}:${interaction.user.id}`;
-    this.locale = interaction.locale;
+    this.locale = resolveLocale(this.guild, interaction.locale);
   }
 
   register(customId: string, callback: Callback): void {

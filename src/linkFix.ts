@@ -20,7 +20,7 @@ import { Filter, Guild } from './db';
 import { type EmbeddableUrl } from './markdown';
 import { websites, type WebsiteLink } from './websites';
 import { groupItems, safeSend } from './utils';
-import { t } from './i18n';
+import { t, resolveLocale } from './i18n';
 
 export type GuildChannel = TextChannel | NewsChannel | ThreadChannel;
 
@@ -103,7 +103,7 @@ export async function fixEmbeds(originalMessage: Message, guild: Guild, links: W
   const webhook = guild.reply_as_original_author_replica ? await getOrCreateWebhook(channel, client) : null;
   const usedMystery = allSent.some(([, groupLinks]) => groupLinks.some((l) => l.usedMysteryFixer));
   if (!usedMystery && allSent.length > 0 && (!guild.reply_as_original_author_replica || webhook !== null)) {
-    await registerRevertPrompt(originalMessage, allSent, webhook);
+    await registerRevertPrompt(originalMessage, allSent, webhook, resolveLocale(guild));
   }
 }
 
@@ -300,7 +300,7 @@ export function isRevertInteractionId(customId: string): boolean {
   return customId.startsWith(REVERT_PREFIX);
 }
 
-async function registerRevertPrompt(originalMessage: Message, allSent: Array<[Message, WebsiteLink[]]>, webhook: Webhook | null): Promise<void> {
+async function registerRevertPrompt(originalMessage: Message, allSent: Array<[Message, WebsiteLink[]]>, webhook: Webhook | null, locale: string): Promise<void> {
   const guildId = originalMessage.guildId;
   const isBot = originalMessage.author.bot;
   const member = !isBot && guildId ? Filter.find('members', guildId, { id: originalMessage.author.id }) : undefined;
@@ -312,14 +312,14 @@ async function registerRevertPrompt(originalMessage: Message, allSent: Array<[Me
   const row =
     variant === 'offer'
       ? new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(`${REVERT_PREFIX}offer_yes_${token}`).setLabel(t('revert.offer.yes')).setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId(`${REVERT_PREFIX}offer_no_${token}`).setLabel(t('revert.offer.no')).setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId(`${REVERT_PREFIX}offer_yes_${token}`).setLabel(t('revert.offer.yes', {}, locale)).setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId(`${REVERT_PREFIX}offer_no_${token}`).setLabel(t('revert.offer.no', {}, locale)).setStyle(ButtonStyle.Secondary),
         )
       : new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(`${REVERT_PREFIX}keep_${token}`).setLabel(t('revert.button.keep')).setStyle(ButtonStyle.Secondary),
-          new ButtonBuilder().setCustomId(`${REVERT_PREFIX}do_${token}`).setLabel(t('revert.button.revert')).setStyle(ButtonStyle.Danger),
+          new ButtonBuilder().setCustomId(`${REVERT_PREFIX}keep_${token}`).setLabel(t('revert.button.keep', {}, locale)).setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId(`${REVERT_PREFIX}do_${token}`).setLabel(t('revert.button.revert', {}, locale)).setStyle(ButtonStyle.Danger),
         );
-  const content = variant === 'offer' ? t('revert.offer.title') : t('revert.prompt');
+  const content = variant === 'offer' ? t('revert.offer.title', {}, locale) : t('revert.prompt', {}, locale);
   const [ok, prompt] = await safeSend(allSent[0][0].reply({ content, components: [row] }), { forbidden: true });
   if (!ok || !prompt) return;
   const timer = setTimeout(() => {
@@ -343,9 +343,10 @@ export async function handleRevertInteraction(interaction: MessageComponentInter
     await interaction.deferUpdate().catch(() => {});
     return;
   }
+  const locale = resolveLocale(interaction.guildId ? Guild.find(interaction.guildId) : null, interaction.locale);
   if (interaction.user.id !== entry.senderId) {
     await interaction
-      .reply({ content: t('revert.error.not_yours', {}, interaction.locale), flags: MessageFlags.Ephemeral })
+      .reply({ content: t('revert.error.not_yours', {}, locale), flags: MessageFlags.Ephemeral })
       .catch(() => {});
     return;
   }
@@ -369,7 +370,7 @@ export async function handleRevertInteraction(interaction: MessageComponentInter
   } else if (variant === 'offer_yes') {
     const guildId = interaction.guildId;
     if (guildId) Filter.findOrCreate('members', guildId, { id: interaction.user.id, bot: false }).update({ keep_always: true });
-    await interaction.reply({ content: t('revert.offer.enabled', {}, interaction.locale), flags: MessageFlags.Ephemeral }).catch(() => {});
+    await interaction.reply({ content: t('revert.offer.enabled', {}, locale), flags: MessageFlags.Ephemeral }).catch(() => {});
   } else if (variant === 'offer_no') {
     const guildId = interaction.guildId;
     if (guildId) Filter.findOrCreate('members', guildId, { id: interaction.user.id, bot: false }).update({ prompt_count: 0 });

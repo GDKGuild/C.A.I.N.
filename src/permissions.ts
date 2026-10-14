@@ -9,7 +9,8 @@ import {
   PermissionsBitField,
 } from 'discord.js';
 import { BOT_OWNER_IDS } from './config';
-import { t } from './i18n';
+import { t, resolveLocale } from './i18n';
+import { Guild as GuildModel } from './db';
 
 export function isBotOwner(client: Client, userId: string): boolean {
   if (BOT_OWNER_IDS.has(userId)) return true;
@@ -39,7 +40,8 @@ export function canUseSettings(client: Client, guild: Guild, member: GuildMember
 type DeniableInteraction = ChatInputCommandInteraction | MessageComponentInteraction | ModalSubmitInteraction;
 
 export async function denySettings(interaction: DeniableInteraction): Promise<void> {
+  const guild = interaction.guildId ? GuildModel.find(interaction.guildId) : null;
   await interaction
-    .reply({ content: t('settings.error.permission', {}, interaction.locale), flags: MessageFlags.Ephemeral })
+    .reply({ content: t('settings.error.permission', {}, resolveLocale(guild, interaction.locale)), flags: MessageFlags.Ephemeral })
     .catch(() => {});
 }

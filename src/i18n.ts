@@ -2,15 +2,36 @@ import enUS from './locales/en-US.json';
 import fr from './locales/fr.json';
 import th from './locales/th.json';
 import thLatn from './locales/th-Latn.json';
+import type { Guild } from './db';
 
 export const DEFAULT_LOCALE = 'en-US';
+
+export const SUPPORTED_LOCALES: Array<{ code: string; name: string }> = [
+  { code: 'en-US', name: 'English' },
+  { code: 'fr', name: 'Français' },
+  { code: 'th', name: 'ไทย' },
+];
 
 type LocaleData = Record<string, string>;
 
 export const locales: Record<string, LocaleData> = { enUS: enUS, fr: fr, th: th, thLatn: thLatn };
 
+const localeKey = (code: string): string => code.replace('-', '');
+
 function getLocale(locale: string): LocaleData {
-  return locales[locale.replace('-', '')] ?? locales['enUS'];
+  const key = localeKey(locale);
+  if (locales[key]) return locales[key];
+  const lang = locale.split('-')[0].toLowerCase();
+  const match =
+    Object.keys(locales).find((k) => k.toLowerCase() === lang) ??
+    Object.keys(locales).find((k) => k.toLowerCase().startsWith(lang));
+  return match ? locales[match] : locales['enUS'];
+}
+
+export function resolveLocale(guild: Guild | null | undefined, interactionLocale?: string | null): string {
+  const override = guild?.ui_language;
+  if (override && locales[localeKey(override)]) return override;
+  return interactionLocale || DEFAULT_LOCALE;
 }
 
 export function t(

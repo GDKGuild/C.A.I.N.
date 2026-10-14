@@ -7,11 +7,13 @@ import {
   EmbedBuilder,
 } from 'discord.js';
 import { COLOR, EMOJI, LINKS, VERSION } from '../config';
-import { t } from '../i18n';
+import { t, resolveLocale } from '../i18n';
+import { Guild as GuildModel } from '../db';
 import { setEmbedFooter } from '../utils';
 
 export async function aboutCommand(client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
-  const locale = interaction.locale;
+  const guild = interaction.guildId ? GuildModel.find(interaction.guildId) : null;
+  const locale = resolveLocale(guild, interaction.locale);
 
   const embed = new EmbedBuilder()
     .setColor(COLOR)

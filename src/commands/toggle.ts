@@ -1,6 +1,6 @@
 import { ChatInputCommandInteraction, Client, MessageFlags, SlashCommandBuilder, SlashCommandOptionsOnlyBuilder } from 'discord.js';
 import { Filter, Guild as GuildModel } from '../db';
-import { t } from '../i18n';
+import { t, resolveLocale } from '../i18n';
 
 export type ToggleAction = 'enable' | 'disable';
 export type ToggleResult = 'enabled' | 'already_enabled' | 'disabled' | 'already_disabled';
@@ -48,17 +48,18 @@ export async function toggleCommand(_client: Client, interaction: ChatInputComma
     return;
   }
   const guild = GuildModel.findOrCreate(interaction.guild.id);
+  const locale = resolveLocale(guild, interaction.locale);
   const keep = interaction.options.getBoolean('keep');
   if (keep !== null) {
     const result = applyKeepToggle(guild, interaction.user.id, keep);
-    await interaction.reply({ content: t(`toggle.result.${result}`, {}, interaction.locale), flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: t(`toggle.result.${result}`, {}, locale), flags: MessageFlags.Ephemeral });
     return;
   }
   const action = interaction.options.getString('action') as ToggleAction | null;
   if (!action) {
-    await interaction.reply({ content: t('toggle.errors.no_option', {}, interaction.locale), flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: t('toggle.errors.no_option', {}, locale), flags: MessageFlags.Ephemeral });
     return;
   }
   const result = applyToggle(guild, interaction.user.id, action);
-  await interaction.reply({ content: t(`toggle.result.${result}`, {}, interaction.locale), flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: t(`toggle.result.${result}`, {}, locale), flags: MessageFlags.Ephemeral });
 }
