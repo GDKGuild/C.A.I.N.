@@ -1,5 +1,7 @@
 import enUS from './locales/en-US.json';
 import fr from './locales/fr.json';
+import de from './locales/de.json';
+import ms from './locales/ms.json';
 import th from './locales/th.json';
 import thLatn from './locales/th-Latn.json';
 import type { Guild } from './db';
@@ -9,12 +11,14 @@ export const DEFAULT_LOCALE = 'en-US';
 export const SUPPORTED_LOCALES: Array<{ code: string; name: string }> = [
   { code: 'en-US', name: 'English' },
   { code: 'fr', name: 'Français' },
+  { code: 'de', name: 'Deutsch' },
+  { code: 'ms', name: 'Bahasa Melayu' },
   { code: 'th', name: 'ไทย' },
 ];
 
 type LocaleData = Record<string, string>;
 
-export const locales: Record<string, LocaleData> = { enUS: enUS, fr: fr, th: th, thLatn: thLatn };
+export const locales: Record<string, LocaleData> = { enUS: enUS, fr: fr, de: de, ms: ms, th: th, thLatn: thLatn };
 
 const localeKey = (code: string): string => code.replace('-', '');
 
