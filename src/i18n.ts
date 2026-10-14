@@ -1,11 +1,13 @@
 import enUS from './locales/en-US.json';
 import fr from './locales/fr.json';
+import th from './locales/th.json';
+import thLatn from './locales/th-Latn.json';
 
 export const DEFAULT_LOCALE = 'en-US';
 
 type LocaleData = Record<string, string>;
 
-export const locales: Record<string, LocaleData> = { enUS: enUS, fr: fr };
+export const locales: Record<string, LocaleData> = { enUS: enUS, fr: fr, th: th, thLatn: thLatn };
 
 function getLocale(locale: string): LocaleData {
   return locales[locale.replace('-', '')] ?? locales['enUS'];
