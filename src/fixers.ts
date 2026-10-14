@@ -36,6 +36,12 @@ export function getFixers(websiteId: string): Fixer[] {
   return FIXERS[websiteId] ?? [];
 }
 
+export const MYSTERY_FIXER_CHANCE = 0.05;
+
+export function shouldUseMysteryFixer(roll: number): boolean {
+  return roll < MYSTERY_FIXER_CHANCE;
+}
+
 // ponytail: in-memory round-robin cursor, resets on restart; map it to a table if per-guild fairness is ever needed
 const rrNext: Record<string, number> = {};
 

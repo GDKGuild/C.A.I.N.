@@ -1,5 +1,5 @@
 import { CustomWebsite, FixerSelection, Guild } from './db';
-import { Fixer, getFixers, nextFixerIndex } from './fixers';
+import { Fixer, getFixers, nextFixerIndex, shouldUseMysteryFixer } from './fixers';
 
 export function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -55,6 +55,7 @@ export abstract class WebsiteLink {
   protected fixerIndex = 0;
   protected fixerCount = 0;
   protected fixerOverride: number | null = null;
+  usedMysteryFixer = false;
 
   constructor(guild: Guild, url: string, spoiler = false) {
     this.guild = guild;
@@ -351,6 +352,22 @@ export class TwitterLink extends GenericWebsiteLink {
       '/:username/status/:id/:media_type(photo|video)/:media_id': null,
     },
   );
+  static mysteryDomain = 'fuckitx.com';
+  static mysteryName = 'FuckItX';
+
+  async getFixedUrl(): Promise<[string | null, string | null]> {
+    const [fixedUrl, fixedLabel] = await super.getFixedUrl();
+    if (this.fixerOverride === null && shouldUseMysteryFixer(Math.random())) {
+      this.usedMysteryFixer = true;
+      const view = (this.guild['twitter_view'] as string) ?? 'normal';
+      const subdomain = TwitterLink.subdomains[view] ?? '';
+      return [
+        this.getPatchedUrl(TwitterLink.mysteryDomain, subdomain, this.routeFixPostPathSegments()),
+        TwitterLink.mysteryName,
+      ];
+    }
+    return [fixedUrl, fixedLabel];
+  }
 
   getPatchedUrl(domain: string, subdomain = '', postPathSegments = '', replaceAuthor = true): string {
     const repl = replaceAuthor

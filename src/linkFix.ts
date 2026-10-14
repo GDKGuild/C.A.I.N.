@@ -101,7 +101,8 @@ export async function fixEmbeds(originalMessage: Message, guild: Guild, links: W
   }
   // ponytail: prompt skipped when webhook-attributed but the webhook is unavailable (no ManageWebhooks)
   const webhook = guild.reply_as_original_author_replica ? await getOrCreateWebhook(channel, client) : null;
-  if (allSent.length > 0 && (!guild.reply_as_original_author_replica || webhook !== null)) {
+  const usedMystery = allSent.some(([, groupLinks]) => groupLinks.some((l) => l.usedMysteryFixer));
+  if (!usedMystery && allSent.length > 0 && (!guild.reply_as_original_author_replica || webhook !== null)) {
     await registerRevertPrompt(originalMessage, allSent, webhook);
   }
 }
