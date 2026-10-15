@@ -56,6 +56,8 @@ export abstract class WebsiteLink {
   protected fixerCount = 0;
   protected fixerOverride: number | null = null;
   usedMysteryFixer = false;
+  private retries = 0;
+  private maxRetries = -1;
 
   constructor(guild: Guild, url: string, spoiler = false) {
     this.guild = guild;
@@ -100,8 +102,21 @@ export abstract class WebsiteLink {
     if (this.fixerCount <= 1 || this._rendered === null) {
       return null;
     }
+    if (this.maxRetries < 0) {
+      // a mystery override adds one extra "fixer" to the sequence, so allow one more retry
+      this.maxRetries = this.fixerCount - 1 + (this.usedMysteryFixer ? 1 : 0);
+    }
+    if (this.retries >= this.maxRetries) {
+      return null;
+    }
+    this.retries += 1;
     this._rendered = null;
-    this.fixerOverride = (this.fixerIndex + 1) % this.fixerCount;
+    // a mystery-fixer override isn't a real fixer; fall back to the fixer that
+    // would have been used (fixerIndex), not the one after it.
+    this.fixerOverride = this.usedMysteryFixer
+      ? this.fixerIndex
+      : (this.fixerIndex + 1) % this.fixerCount;
+    this.usedMysteryFixer = false;
     const out = await this.render();
     this.fixerOverride = null;
     return out;

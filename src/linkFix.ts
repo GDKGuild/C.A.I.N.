@@ -68,25 +68,28 @@ export async function fixEmbeds(originalMessage: Message, guild: Guild, links: W
   const allSent: Array<[Message, WebsiteLink[]]> = [];
   let toDelete: Message[] = [];
   if (messages.length > 0) {
-    const results = await Promise.all(messages.map(([msg]) => waitForEmbed(msg, client)));
-    for (const [msg, failedLinks] of messages.filter((_, i) => !results[i])) {
-      const retried: WebsiteLink[] = [];
-      for (const link of failedLinks) {
-        if (await link.retryNextFixer()) retried.push(link);
-      }
-      if (retried.length > 0) {
-        const [notSent2, messages2] = await sendFixedLinks(retried, guild, originalMessage, client);
-        notSent.push(...notSent2);
-        const results2 = await Promise.all(messages2.map(([m]) => waitForEmbed(m, client)));
-        toDelete.push(...messages2.filter((_, i) => !results2[i]).map(([m]) => m));
-        for (const [m, linksInGroup] of messages2.filter((_, i) => results2[i])) {
-          allSent.push([m, linksInGroup]);
+    let pending: Array<[Message, WebsiteLink[]]> = messages;
+    while (pending.length > 0) {
+      const results = await Promise.all(pending.map(([msg]) => waitForEmbed(msg, client)));
+      const nextPending: Array<[Message, WebsiteLink[]]> = [];
+      for (let i = 0; i < pending.length; i++) {
+        const [msg, linksInGroup] = pending[i];
+        if (results[i]) {
+          allSent.push([msg, linksInGroup]);
+          continue;
         }
+        const retried: WebsiteLink[] = [];
+        for (const link of linksInGroup) {
+          if (await link.retryNextFixer()) retried.push(link);
+        }
+        if (retried.length > 0) {
+          const [notSent2, messages2] = await sendFixedLinks(retried, guild, originalMessage, client);
+          notSent.push(...notSent2);
+          nextPending.push(...messages2);
+        }
+        toDelete.push(msg);
       }
-      toDelete.push(msg);
-    }
-    for (const [msg, linksInGroup] of messages.filter((_, i) => results[i])) {
-      allSent.push([msg, linksInGroup]);
+      pending = nextPending;
     }
     if (toDelete.length > 0) {
       console.warn(`message(s) has no embed after waiting: ${toDelete.length}`);
