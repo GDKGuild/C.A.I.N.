@@ -6,13 +6,12 @@ import { SettingsView } from '../views/settings';
 export function settingsCommandBuilder(): SlashCommandBuilder {
   return new SlashCommandBuilder()
     .setName(t('settings.command.name'))
-    .setDescription(t('settings.command.description'))
-    .setDMPermission(false);
+    .setDescription(t('settings.command.description'));
 }
 
 export async function settingsCommand(client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
   const member = interaction.member as GuildMember | null;
-  if (!interaction.guild || !member || !canUseSettings(client, interaction.guild, member)) {
+  if (interaction.guild && member && !canUseSettings(client, interaction.guild, member)) {
     await denySettings(interaction);
     return;
   }

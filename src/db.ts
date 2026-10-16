@@ -10,6 +10,47 @@ fs.mkdirSync(DB_DIR, { recursive: true });
 export const db = new Database(DB_FILE);
 db.pragma('journal_mode = WAL');
 
+const WEBSITE_COLS_SQL = `twitter INTEGER NOT NULL DEFAULT 1,
+  twitter_tr INTEGER NOT NULL DEFAULT 0,
+  twitter_view TEXT NOT NULL DEFAULT 'normal',
+  instagram INTEGER NOT NULL DEFAULT 1,
+  instagram_view TEXT NOT NULL DEFAULT 'normal',
+  instagram_tr INTEGER NOT NULL DEFAULT 0,
+  tiktok INTEGER NOT NULL DEFAULT 1,
+  tiktok_view TEXT NOT NULL DEFAULT 'normal',
+  reddit INTEGER NOT NULL DEFAULT 1,
+  threads INTEGER NOT NULL DEFAULT 1,
+  bluesky INTEGER NOT NULL DEFAULT 1,
+  bluesky_view TEXT NOT NULL DEFAULT 'normal',
+  pixiv INTEGER NOT NULL DEFAULT 1,
+  ifunny INTEGER NOT NULL DEFAULT 1,
+  ifunny_view TEXT NOT NULL DEFAULT 'normal',
+  ifunny_tr INTEGER NOT NULL DEFAULT 0,
+  furaffinity INTEGER NOT NULL DEFAULT 1,
+  youtube INTEGER NOT NULL DEFAULT 0,
+  mastodon INTEGER NOT NULL DEFAULT 0,
+  deviantart INTEGER NOT NULL DEFAULT 1,
+  tumblr INTEGER NOT NULL DEFAULT 0,
+  facebook INTEGER NOT NULL DEFAULT 1,
+  bilibili INTEGER NOT NULL DEFAULT 1,
+  twitch INTEGER NOT NULL DEFAULT 1,
+  spotify INTEGER NOT NULL DEFAULT 0,
+  snapchat INTEGER NOT NULL DEFAULT 1,
+  snapchat_view TEXT NOT NULL DEFAULT 'normal',
+  snapchat_tr INTEGER NOT NULL DEFAULT 0,
+  imgur INTEGER NOT NULL DEFAULT 0,
+  imgur_view TEXT NOT NULL DEFAULT 'normal',
+  imgur_tr INTEGER NOT NULL DEFAULT 0,
+  weibo INTEGER NOT NULL DEFAULT 1,
+  weibo_view TEXT NOT NULL DEFAULT 'normal',
+  weibo_tr INTEGER NOT NULL DEFAULT 0,
+  imageboards INTEGER NOT NULL DEFAULT 1,
+  imageboards_view TEXT NOT NULL DEFAULT 'normal',
+  pinterest INTEGER NOT NULL DEFAULT 1,
+  pinterest_view TEXT NOT NULL DEFAULT 'normal',
+  pinterest_tr INTEGER NOT NULL DEFAULT 0,
+  newgrounds INTEGER NOT NULL DEFAULT 1`;
+
 initDb();
 
 export type OriginalMessage = 'nothing' | 'remove_embeds' | 'delete';
@@ -19,6 +60,113 @@ export type TiktokView = 'normal' | 'gallery' | 'direct_media';
 export type EmbedEzView = 'normal' | 'direct_media';
 
 export type FilterTable = 'text_channels' | 'members' | 'roles';
+
+export interface WebsiteConfig {
+  id: string;
+  keywords: string[];
+  keywords_use_allow_list: boolean;
+  lang: string | null;
+  original_message: OriginalMessage;
+  reply_to_message: boolean;
+  reply_silently: boolean;
+  reply_as_original_author_replica: boolean;
+  fixer_strategy: FixerStrategy;
+  custom_websites: CustomWebsite[];
+  custom_fixers: CustomFixer[];
+  twitter: boolean;
+  twitter_tr: boolean;
+  twitter_view: FxEmbedView;
+  instagram: boolean;
+  instagram_view: InstagramView;
+  instagram_tr: boolean;
+  tiktok: boolean;
+  tiktok_view: TiktokView;
+  reddit: boolean;
+  threads: boolean;
+  bluesky: boolean;
+  bluesky_view: FxEmbedView;
+  pixiv: boolean;
+  ifunny: boolean;
+  ifunny_view: EmbedEzView;
+  ifunny_tr: boolean;
+  furaffinity: boolean;
+  youtube: boolean;
+  mastodon: boolean;
+  deviantart: boolean;
+  tumblr: boolean;
+  facebook: boolean;
+  bilibili: boolean;
+  twitch: boolean;
+  spotify: boolean;
+  snapchat: boolean;
+  snapchat_view: EmbedEzView;
+  snapchat_tr: boolean;
+  imgur: boolean;
+  imgur_view: EmbedEzView;
+  imgur_tr: boolean;
+  weibo: boolean;
+  weibo_view: EmbedEzView;
+  weibo_tr: boolean;
+  imageboards: boolean;
+  imageboards_view: EmbedEzView;
+  pinterest: boolean;
+  pinterest_view: EmbedEzView;
+  pinterest_tr: boolean;
+  newgrounds: boolean;
+}
+
+const WEBSITE_BOOL_COLS = [
+  'twitter',
+  'twitter_tr',
+  'instagram',
+  'instagram_tr',
+  'tiktok',
+  'reddit',
+  'threads',
+  'bluesky',
+  'pixiv',
+  'ifunny',
+  'ifunny_tr',
+  'furaffinity',
+  'youtube',
+  'mastodon',
+  'deviantart',
+  'tumblr',
+  'facebook',
+  'bilibili',
+  'twitch',
+  'spotify',
+  'snapchat',
+  'snapchat_tr',
+  'imgur',
+  'imgur_tr',
+  'weibo',
+  'weibo_tr',
+  'imageboards',
+  'pinterest',
+  'pinterest_tr',
+  'newgrounds',
+] as const;
+
+const WEBSITE_VIEW_COLS = [
+  'twitter_view',
+  'instagram_view',
+  'tiktok_view',
+  'bluesky_view',
+  'ifunny_view',
+  'snapchat_view',
+  'imgur_view',
+  'weibo_view',
+  'imageboards_view',
+  'pinterest_view',
+] as const;
+
+function websiteFields(row: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of WEBSITE_BOOL_COLS) out[key] = !!row[key];
+  for (const key of WEBSITE_VIEW_COLS) out[key] = row[key] as string;
+  return out;
+}
 
 export interface GuildRow {
   id: string;
@@ -102,7 +250,7 @@ function updateRow(
   return true;
 }
 
-export class Guild {
+export class Guild implements WebsiteConfig {
   id: string;
   keywords: string[];
   keywords_use_allow_list: boolean;
@@ -118,46 +266,46 @@ export class Guild {
   reply_as_original_author_replica: boolean;
   webhooks: boolean;
   force_fix: boolean;
-  twitter: boolean;
-  twitter_tr: boolean;
-  twitter_view: FxEmbedView;
-  instagram: boolean;
-  instagram_view: InstagramView;
-  instagram_tr: boolean;
-  tiktok: boolean;
-  tiktok_view: TiktokView;
-  reddit: boolean;
-  threads: boolean;
-  bluesky: boolean;
-  bluesky_view: FxEmbedView;
-  pixiv: boolean;
-  ifunny: boolean;
-  ifunny_view: EmbedEzView;
-  ifunny_tr: boolean;
-  furaffinity: boolean;
-  youtube: boolean;
-  mastodon: boolean;
-  deviantart: boolean;
-  tumblr: boolean;
-  facebook: boolean;
-  bilibili: boolean;
-  twitch: boolean;
-  spotify: boolean;
-  snapchat: boolean;
-  snapchat_view: EmbedEzView;
-  snapchat_tr: boolean;
-  imgur: boolean;
-  imgur_view: EmbedEzView;
-  imgur_tr: boolean;
-  weibo: boolean;
-  weibo_view: EmbedEzView;
-  weibo_tr: boolean;
-  imageboards: boolean;
-  imageboards_view: EmbedEzView;
-  pinterest: boolean;
-  pinterest_view: EmbedEzView;
-  pinterest_tr: boolean;
-  newgrounds: boolean;
+  twitter!: boolean;
+  twitter_tr!: boolean;
+  twitter_view!: FxEmbedView;
+  instagram!: boolean;
+  instagram_view!: InstagramView;
+  instagram_tr!: boolean;
+  tiktok!: boolean;
+  tiktok_view!: TiktokView;
+  reddit!: boolean;
+  threads!: boolean;
+  bluesky!: boolean;
+  bluesky_view!: FxEmbedView;
+  pixiv!: boolean;
+  ifunny!: boolean;
+  ifunny_view!: EmbedEzView;
+  ifunny_tr!: boolean;
+  furaffinity!: boolean;
+  youtube!: boolean;
+  mastodon!: boolean;
+  deviantart!: boolean;
+  tumblr!: boolean;
+  facebook!: boolean;
+  bilibili!: boolean;
+  twitch!: boolean;
+  spotify!: boolean;
+  snapchat!: boolean;
+  snapchat_view!: EmbedEzView;
+  snapchat_tr!: boolean;
+  imgur!: boolean;
+  imgur_view!: EmbedEzView;
+  imgur_tr!: boolean;
+  weibo!: boolean;
+  weibo_view!: EmbedEzView;
+  weibo_tr!: boolean;
+  imageboards!: boolean;
+  imageboards_view!: EmbedEzView;
+  pinterest!: boolean;
+  pinterest_view!: EmbedEzView;
+  pinterest_tr!: boolean;
+  newgrounds!: boolean;
   fixer_strategy: FixerStrategy;
 
   private constructor(row: GuildRow) {
@@ -176,46 +324,7 @@ export class Guild {
     this.reply_as_original_author_replica = !!row.reply_as_original_author_replica;
     this.webhooks = !!row.webhooks;
     this.force_fix = !!row.force_fix;
-    this.twitter = !!row.twitter;
-    this.twitter_tr = !!row.twitter_tr;
-    this.twitter_view = row.twitter_view as FxEmbedView;
-    this.instagram = !!row.instagram;
-    this.instagram_view = row.instagram_view as InstagramView;
-    this.instagram_tr = !!row.instagram_tr;
-    this.tiktok = !!row.tiktok;
-    this.tiktok_view = row.tiktok_view as TiktokView;
-    this.reddit = !!row.reddit;
-    this.threads = !!row.threads;
-    this.bluesky = !!row.bluesky;
-    this.bluesky_view = row.bluesky_view as FxEmbedView;
-    this.pixiv = !!row.pixiv;
-    this.ifunny = !!row.ifunny;
-    this.ifunny_view = row.ifunny_view as EmbedEzView;
-    this.ifunny_tr = !!row.ifunny_tr;
-    this.furaffinity = !!row.furaffinity;
-    this.youtube = !!row.youtube;
-    this.mastodon = !!row.mastodon;
-    this.deviantart = !!row.deviantart;
-    this.tumblr = !!row.tumblr;
-    this.facebook = !!row.facebook;
-    this.bilibili = !!row.bilibili;
-    this.twitch = !!row.twitch;
-    this.spotify = !!row.spotify;
-    this.snapchat = !!row.snapchat;
-    this.snapchat_view = row.snapchat_view as EmbedEzView;
-    this.snapchat_tr = !!row.snapchat_tr;
-    this.imgur = !!row.imgur;
-    this.imgur_view = row.imgur_view as EmbedEzView;
-    this.imgur_tr = !!row.imgur_tr;
-    this.weibo = !!row.weibo;
-    this.weibo_view = row.weibo_view as EmbedEzView;
-    this.weibo_tr = !!row.weibo_tr;
-    this.imageboards = !!row.imageboards;
-    this.imageboards_view = row.imageboards_view as EmbedEzView;
-    this.pinterest = !!row.pinterest;
-    this.pinterest_view = row.pinterest_view as EmbedEzView;
-    this.pinterest_tr = !!row.pinterest_tr;
-    this.newgrounds = !!row.newgrounds;
+    Object.assign(this, websiteFields(row as unknown as Record<string, unknown>));
     this.fixer_strategy = row.fixer_strategy as FixerStrategy;
   }
 
@@ -248,12 +357,138 @@ export class Guild {
 }
 
 const getGuildStmt = db.prepare('SELECT * FROM guilds WHERE id = ?');
-const insertGuildStmt = db.prepare(`INSERT INTO guilds (id, keywords, keywords_use_allow_list, text_channels_use_allow_list, members_use_allow_list, roles_use_allow_list, roles_use_any_rule, lang, original_message, reply_to_message, reply_silently, reply_as_original_author_replica, webhooks, force_fix, twitter, twitter_tr, twitter_view, instagram, instagram_view, instagram_tr, tiktok, tiktok_view, reddit, threads, bluesky, bluesky_view, pixiv, ifunny, ifunny_view, ifunny_tr, furaffinity, youtube, mastodon, deviantart, tumblr, facebook, bilibili, twitch, spotify, snapchat, snapchat_view, snapchat_tr, imgur, imgur_view, imgur_tr, weibo, weibo_view, weibo_tr, imageboards, imageboards_view, pinterest, pinterest_view, pinterest_tr, newgrounds, fixer_strategy)
-  VALUES (@id, @keywords, 0, 0, 0, 0, 0, NULL, 'remove_embeds', 0, 1, 0, 0, 0, 1, 0, 'normal', 1, 'normal', 0, 1, 'normal', 1, 1, 1, 'normal', 1, 1, 'normal', 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 'normal', 0, 0, 'normal', 0, 1, 'normal', 0, 1, 'normal', 1, 'normal', 0, 1, 'round_robin')`);
+const insertGuildStmt = db.prepare(`INSERT INTO guilds (id, keywords) VALUES (@id, @keywords)`);
 
 export function insertGuild(id: string): Guild {
   insertGuildStmt.run({ id, keywords: JSON.stringify(['fxignore']) });
   return Guild.find(id)!;
+}
+
+export interface UserRow {
+  id: string;
+  keywords: string;
+  keywords_use_allow_list: number;
+  lang: string | null;
+  original_message: string;
+  reply_to_message: number;
+  reply_silently: number;
+  reply_as_original_author_replica: number;
+  fixer_strategy: string;
+  dm_fixing: number;
+  keep_always: number;
+  prompt_count: number;
+  [key: string]: unknown;
+}
+
+export class User implements WebsiteConfig {
+  id: string;
+  keywords: string[];
+  keywords_use_allow_list: boolean;
+  lang: string | null;
+  original_message: OriginalMessage;
+  reply_to_message: boolean;
+  reply_silently: boolean;
+  reply_as_original_author_replica: boolean;
+  fixer_strategy: FixerStrategy;
+  dm_fixing: boolean;
+  keep_always: boolean;
+  prompt_count: number;
+  twitter!: boolean;
+  twitter_tr!: boolean;
+  twitter_view!: FxEmbedView;
+  instagram!: boolean;
+  instagram_view!: InstagramView;
+  instagram_tr!: boolean;
+  tiktok!: boolean;
+  tiktok_view!: TiktokView;
+  reddit!: boolean;
+  threads!: boolean;
+  bluesky!: boolean;
+  bluesky_view!: FxEmbedView;
+  pixiv!: boolean;
+  ifunny!: boolean;
+  ifunny_view!: EmbedEzView;
+  ifunny_tr!: boolean;
+  furaffinity!: boolean;
+  youtube!: boolean;
+  mastodon!: boolean;
+  deviantart!: boolean;
+  tumblr!: boolean;
+  facebook!: boolean;
+  bilibili!: boolean;
+  twitch!: boolean;
+  spotify!: boolean;
+  snapchat!: boolean;
+  snapchat_view!: EmbedEzView;
+  snapchat_tr!: boolean;
+  imgur!: boolean;
+  imgur_view!: EmbedEzView;
+  imgur_tr!: boolean;
+  weibo!: boolean;
+  weibo_view!: EmbedEzView;
+  weibo_tr!: boolean;
+  imageboards!: boolean;
+  imageboards_view!: EmbedEzView;
+  pinterest!: boolean;
+  pinterest_view!: EmbedEzView;
+  pinterest_tr!: boolean;
+  newgrounds!: boolean;
+
+  private constructor(row: UserRow) {
+    this.id = row.id;
+    this.keywords = JSON.parse(row.keywords) as string[];
+    this.keywords_use_allow_list = !!row.keywords_use_allow_list;
+    this.lang = row.lang;
+    this.original_message = row.original_message as OriginalMessage;
+    this.reply_to_message = !!row.reply_to_message;
+    this.reply_silently = !!row.reply_silently;
+    this.reply_as_original_author_replica = !!row.reply_as_original_author_replica;
+    this.fixer_strategy = row.fixer_strategy as FixerStrategy;
+    this.dm_fixing = !!row.dm_fixing;
+    this.keep_always = !!row.keep_always;
+    this.prompt_count = Number(row.prompt_count ?? 0);
+    Object.assign(this, websiteFields(row as unknown as Record<string, unknown>));
+  }
+
+  get custom_websites(): CustomWebsite[] {
+    return CustomWebsite.findAllByGuild(this.id);
+  }
+
+  get custom_fixers(): CustomFixer[] {
+    return CustomFixer.findAllByGuild(this.id);
+  }
+
+  static find(id: string): User | null {
+    const row = getUserStmt.get(id) as UserRow | undefined;
+    return row ? new User(row) : null;
+  }
+
+  static findOrCreate(id: string): User {
+    return User.find(id) ?? insertUser(id);
+  }
+
+  update(fields: Partial<User>): void {
+    const clamped: Partial<User> = { ...fields };
+    if (clamped.original_message !== undefined) clamped.original_message = 'nothing';
+    if (clamped.reply_as_original_author_replica !== undefined) {
+      clamped.reply_as_original_author_replica = false;
+    }
+    const wrote = updateRow('users', { id: this.id }, clamped, (key, value) => {
+      if (key === 'id') return null;
+      if (key === 'keywords') return [key, JSON.stringify(value)];
+      if (typeof value === 'boolean') return [key, value ? 1 : 0];
+      return value !== undefined ? [key, value] : null;
+    });
+    if (wrote) Object.assign(this, clamped);
+  }
+}
+
+const getUserStmt = db.prepare('SELECT * FROM users WHERE id = ?');
+const insertUserStmt = db.prepare('INSERT OR IGNORE INTO users (id) VALUES (?)');
+
+function insertUser(id: string): User {
+  insertUserStmt.run(id);
+  return User.find(id)!;
 }
 
 export interface FilterRow {
@@ -638,47 +873,23 @@ export function initDb(): void {
       reply_as_original_author_replica INTEGER NOT NULL DEFAULT 0,
       webhooks INTEGER NOT NULL DEFAULT 0,
       force_fix INTEGER NOT NULL DEFAULT 0,
-      twitter INTEGER NOT NULL DEFAULT 1,
-      twitter_tr INTEGER NOT NULL DEFAULT 0,
-      twitter_view TEXT NOT NULL DEFAULT 'normal',
-      instagram INTEGER NOT NULL DEFAULT 1,
-      instagram_view TEXT NOT NULL DEFAULT 'normal',
-      instagram_tr INTEGER NOT NULL DEFAULT 0,
-      tiktok INTEGER NOT NULL DEFAULT 1,
-      tiktok_view TEXT NOT NULL DEFAULT 'normal',
-      reddit INTEGER NOT NULL DEFAULT 1,
-      threads INTEGER NOT NULL DEFAULT 1,
-      bluesky INTEGER NOT NULL DEFAULT 1,
-      bluesky_view TEXT NOT NULL DEFAULT 'normal',
-      pixiv INTEGER NOT NULL DEFAULT 1,
-      ifunny INTEGER NOT NULL DEFAULT 1,
-      ifunny_view TEXT NOT NULL DEFAULT 'normal',
-      ifunny_tr INTEGER NOT NULL DEFAULT 0,
-      furaffinity INTEGER NOT NULL DEFAULT 1,
-      youtube INTEGER NOT NULL DEFAULT 0,
-      mastodon INTEGER NOT NULL DEFAULT 0,
-      deviantart INTEGER NOT NULL DEFAULT 1,
-      tumblr INTEGER NOT NULL DEFAULT 0,
-      facebook INTEGER NOT NULL DEFAULT 1,
-      bilibili INTEGER NOT NULL DEFAULT 1,
-      twitch INTEGER NOT NULL DEFAULT 1,
-      spotify INTEGER NOT NULL DEFAULT 0,
-      snapchat INTEGER NOT NULL DEFAULT 1,
-      snapchat_view TEXT NOT NULL DEFAULT 'normal',
-      snapchat_tr INTEGER NOT NULL DEFAULT 0,
-      imgur INTEGER NOT NULL DEFAULT 0,
-      imgur_view TEXT NOT NULL DEFAULT 'normal',
-      imgur_tr INTEGER NOT NULL DEFAULT 0,
-      weibo INTEGER NOT NULL DEFAULT 1,
-      weibo_view TEXT NOT NULL DEFAULT 'normal',
-      weibo_tr INTEGER NOT NULL DEFAULT 0,
-      imageboards INTEGER NOT NULL DEFAULT 1,
-      imageboards_view TEXT NOT NULL DEFAULT 'normal',
-      pinterest INTEGER NOT NULL DEFAULT 1,
-      pinterest_view TEXT NOT NULL DEFAULT 'normal',
-      pinterest_tr INTEGER NOT NULL DEFAULT 0,
-      newgrounds INTEGER NOT NULL DEFAULT 1,
+      ${WEBSITE_COLS_SQL},
       fixer_strategy TEXT NOT NULL DEFAULT 'round_robin'
+    );
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      keywords TEXT NOT NULL DEFAULT '["fxignore"]',
+      keywords_use_allow_list INTEGER NOT NULL DEFAULT 0,
+      lang TEXT,
+      original_message TEXT NOT NULL DEFAULT 'nothing',
+      reply_to_message INTEGER NOT NULL DEFAULT 1,
+      reply_silently INTEGER NOT NULL DEFAULT 1,
+      reply_as_original_author_replica INTEGER NOT NULL DEFAULT 0,
+      fixer_strategy TEXT NOT NULL DEFAULT 'round_robin',
+      dm_fixing INTEGER NOT NULL DEFAULT 1,
+      keep_always INTEGER NOT NULL DEFAULT 0,
+      prompt_count INTEGER NOT NULL DEFAULT 0,
+      ${WEBSITE_COLS_SQL}
     );
     CREATE TABLE IF NOT EXISTS text_channels (
       id TEXT PRIMARY KEY,

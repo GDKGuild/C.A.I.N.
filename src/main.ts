@@ -3,6 +3,7 @@ import { Client, GatewayIntentBits } from 'discord.js';
 import { TOKEN } from './config';
 import { handleMessageCreate } from './events/messageCreate';
 import { registerCommands } from './commands';
+import { fixLinksCommand } from './commands/fixLinks';
 import { handleSettingsInteraction } from './views/settings';
 import { handleListInteraction, isListInteractionId } from './commands/list';
 import { handleRevertInteraction, isRevertInteractionId } from './linkFix';
@@ -11,13 +12,16 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.DirectMessages,
     GatewayIntentBits.MessageContent,
   ],
 });
 
 client.on('messageCreate', (message) => handleMessageCreate(client, message));
 client.on('interactionCreate', (interaction) => {
-  if (interaction.isMessageComponent() || interaction.isModalSubmit()) {
+  if (interaction.isMessageContextMenuCommand()) {
+    void fixLinksCommand(client, interaction);
+  } else if (interaction.isMessageComponent() || interaction.isModalSubmit()) {
     if (isListInteractionId(interaction.customId)) {
       void handleListInteraction(interaction);
     } else if (interaction.isMessageComponent() && isRevertInteractionId(interaction.customId)) {

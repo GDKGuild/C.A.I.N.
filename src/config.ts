@@ -8,6 +8,7 @@ export const EMOJI: Record<string, string> = config.emoji;
 
 export const LINKS: Record<string, string> = {
   invite: config.invite_link,
+  user_install: config.user_install_link,
   repo: config.repo_link,
   original: config.original_link,
   support: config.support_link,

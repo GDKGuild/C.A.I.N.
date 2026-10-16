@@ -25,7 +25,7 @@ import {
   ThreadChannel,
   UserSelectMenuBuilder,
 } from 'discord.js';
-import { CustomWebsite, Filter, FilterTable, FixerManager, FixerSelection, Guild as GuildModel, OriginalMessage } from '../db';
+import { CustomWebsite, Filter, FilterTable, FixerManager, FixerSelection, Guild as GuildModel, OriginalMessage, User } from '../db';
 import { FIXER_STRATEGIES, getFixers } from '../fixers';
 import { EMOJI, LINKS } from '../config';
 import { SUPPORTED_LOCALES, t } from '../i18n';
@@ -154,14 +154,19 @@ class HybridElement<D extends { id: string }, M> {
 
 class DataElements {
   guild: HybridElement<DiscordGuild, GuildModel>;
-  member: FilterElement;
-  channel: FilterElement;
-  role: FilterElement;
-  roles: FilterElement[];
+  userConfig: User | null = null;
+  isUserMode = false;
+  member!: FilterElement;
+  channel!: FilterElement;
+  role!: FilterElement;
+  roles: FilterElement[] = [];
 
   constructor(interaction: ChatInputCommandInteraction) {
     if (!interaction.guild || !interaction.member || !interaction.channel) {
-      throw new Error('settings view requires a guild context');
+      this.isUserMode = true;
+      this.userConfig = User.findOrCreate(interaction.user.id);
+      this.guild = new HybridElement(null as unknown as DiscordGuild, this.userConfig as unknown as GuildModel);
+      return;
     }
     const guildId = interaction.guild.id;
     this.guild = new HybridElement(interaction.guild, GuildModel.findOrCreate(guildId));
@@ -180,6 +185,7 @@ class DataElements {
   }
 
   refresh(): void {
+    if (this.isUserMode) return;
     const guildId = this.guild.discordObject.id;
     this.guild.dbObject = GuildModel.find(guildId) ?? GuildModel.findOrCreate(guildId);
     this.member.dbObject = Filter.findOrCreate('members', this.member.guildId, toDElement('members', this.member.discordObject));
@@ -1105,20 +1111,23 @@ class ReplyMethodSetting extends BaseSetting {
 
   async embed(): Promise<EmbedBuilder> {
     const perms = ['view_channel', 'send_messages', 'embed_links'];
-    if (isThreadChannel(this.ctx.channel.discordObject)) {
+    if (this.ctx.channel && isThreadChannel(this.ctx.channel.discordObject)) {
       perms.push('send_messages_in_threads');
     }
     if (this.reply_to_message) perms.push('read_message_history');
     if (this.reply_as_original_author_replica) perms.push('manage_webhooks');
+    const permsStr = this.ctx.channel ? formatPerms(perms, this.ctx.channel.discordObject as GuildChannel | ThreadChannel) : '';
     const embed = new EmbedBuilder().setTitle(`${this.emoji} ${t(this.name)}`).setDescription(
       t('settings.reply_method.content', {
         state: t(`settings.reply_method.reply.state.${boolString(this.reply_to_message)}`, { emoji: this.emoji }),
         silent: t(`settings.reply_method.silent.state.${boolString(this.reply_silently)}`),
-        replica: t(
-          `settings.reply_method.original_author_replica.state.${boolString(this.reply_as_original_author_replica)}`,
-          { bot: this.bot.user?.username ?? '' },
-        ),
-        perms: formatPerms(perms, this.ctx.channel.discordObject as GuildChannel | ThreadChannel),
+        replica: this.ctx.isUserMode
+          ? ''
+          : t(
+              `settings.reply_method.original_author_replica.state.${boolString(this.reply_as_original_author_replica)}`,
+              { bot: this.bot.user?.username ?? '' },
+            ),
+        perms: permsStr,
       }),
     );
     setEmbedFooter(this.bot, embed);
@@ -1126,10 +1135,11 @@ class ReplyMethodSetting extends BaseSetting {
   }
 
   async option(): Promise<StringSelectMenuOptionBuilder> {
-    const hasMissingPerms =
-      (this.reply_to_message && isMissingPerm(['read_message_history'], this.ctx.channel.discordObject as GuildChannel | ThreadChannel)) ||
-      (this.reply_as_original_author_replica &&
-        isMissingPerm(['manage_webhooks'], this.ctx.channel.discordObject as GuildChannel | ThreadChannel));
+    const hasMissingPerms = this.ctx.channel
+      ? (this.reply_to_message && isMissingPerm(['read_message_history'], this.ctx.channel.discordObject as GuildChannel | ThreadChannel)) ||
+        (this.reply_as_original_author_replica &&
+          isMissingPerm(['manage_webhooks'], this.ctx.channel.discordObject as GuildChannel | ThreadChannel))
+      : false;
     const option = new StringSelectMenuOptionBuilder()
       .setLabel((hasMissingPerms ? '⚠️ ' : '') + t(this.name))
       .setValue(this.id)
@@ -1150,18 +1160,21 @@ class ReplyMethodSetting extends BaseSetting {
       t(`settings.reply_method.silent.button.${boolString(this.reply_silently)}`),
     ).setCustomId('reply_silently');
     this.view.register('reply_silently', (i) => this.toggleReplySilently(i));
-    const replicaButton = button(
-      this.reply_as_original_author_replica ? ButtonStyle.Primary : ButtonStyle.Secondary,
-      t(`settings.reply_method.original_author_replica.button.${boolString(this.reply_as_original_author_replica)}`, {
-        bot: this.bot.user?.username ?? '',
-      }),
-    ).setCustomId('reply_as_original_author_replica');
-    this.view.register('reply_as_original_author_replica', (i) => this.toggleReplyAsOriginalAuthorReplica(i));
-    return [
+    const items: Array<RowItem> = [
       { builder: replyButton },
       { builder: silentButton },
-      { builder: replicaButton },
     ];
+    if (!this.view.ctx.isUserMode) {
+      const replicaButton = button(
+        this.reply_as_original_author_replica ? ButtonStyle.Primary : ButtonStyle.Secondary,
+        t(`settings.reply_method.original_author_replica.button.${boolString(this.reply_as_original_author_replica)}`, {
+          bot: this.bot.user?.username ?? '',
+        }),
+      ).setCustomId('reply_as_original_author_replica');
+      this.view.register('reply_as_original_author_replica', (i) => this.toggleReplyAsOriginalAuthorReplica(i));
+      items.push({ builder: replicaButton });
+    }
+    return items;
   }
 
   async toggleReplyToMessage(interaction: Interactive): Promise<void> {
@@ -1888,8 +1901,11 @@ class WebsiteSettings extends BaseSetting {
 
   constructor(interaction: ChatInputCommandInteraction | MessageComponentInteraction, view: SettingsView, ctx: DataElements) {
     super(interaction, view, ctx);
-    const all: Array<BaseSetting> = [
-      new CustomWebsitesSetting(interaction, view, ctx),
+    const all: Array<BaseSetting> = [];
+    if (!ctx.isUserMode) {
+      all.push(new CustomWebsitesSetting(interaction, view, ctx));
+    }
+    all.push(
       new TwitterSetting(interaction, view, ctx),
       new InstagramSetting(interaction, view, ctx),
       new TikTokSetting(interaction, view, ctx),
@@ -1913,7 +1929,7 @@ class WebsiteSettings extends BaseSetting {
       new YouTubeSetting(interaction, view, ctx),
       new FurAffinitySetting(interaction, view, ctx),
       new ImageboardsSetting(interaction, view, ctx),
-    ];
+    );
     this.settings = Object.fromEntries(all.map((s) => [s.id, s]));
     this.selected_id = null;
   }
@@ -1969,25 +1985,34 @@ export class SettingsView {
   private isActive = false;
 
   constructor(interaction: ChatInputCommandInteraction | MessageComponentInteraction) {
-    if (!interaction.guild) throw new Error('settings view requires a guild');
     this.bot = interaction.client;
-    this.key = `${interaction.guild.id}:${interaction.user.id}`;
+    this.key = `${interaction.guild?.id ?? ''}:${interaction.user.id}`;
     this.ctx = new DataElements(interaction as ChatInputCommandInteraction);
-    const all: Array<BaseSetting> = [
-      new TroubleshootingSetting(interaction, this, this.ctx),
-      new ChannelSetting(interaction, this, this.ctx),
-      new MemberSetting(interaction, this, this.ctx),
-      new RoleSetting(interaction, this, this.ctx),
-      new KeywordsSetting(interaction, this, this.ctx),
-      new WebsiteSettings(interaction, this, this.ctx),
-      new OriginalMessageBehaviorSetting(interaction, this, this.ctx),
-      new ReplyMethodSetting(interaction, this, this.ctx),
-      new WebhooksSetting(interaction, this, this.ctx),
-      new ForceFixSetting(interaction, this, this.ctx),
-      new FixerStrategySetting(interaction, this, this.ctx),
-      new FixerManagersSetting(interaction, this, this.ctx),
-      new LanguageSetting(interaction, this, this.ctx),
-    ];
+    const all: Array<BaseSetting> = [];
+    if (this.ctx.isUserMode) {
+      all.push(
+        new KeywordsSetting(interaction, this, this.ctx),
+        new WebsiteSettings(interaction, this, this.ctx),
+        new ReplyMethodSetting(interaction, this, this.ctx),
+        new FixerStrategySetting(interaction, this, this.ctx),
+      );
+    } else {
+      all.push(
+        new TroubleshootingSetting(interaction, this, this.ctx),
+        new ChannelSetting(interaction, this, this.ctx),
+        new MemberSetting(interaction, this, this.ctx),
+        new RoleSetting(interaction, this, this.ctx),
+        new KeywordsSetting(interaction, this, this.ctx),
+        new WebsiteSettings(interaction, this, this.ctx),
+        new OriginalMessageBehaviorSetting(interaction, this, this.ctx),
+        new ReplyMethodSetting(interaction, this, this.ctx),
+        new WebhooksSetting(interaction, this, this.ctx),
+        new ForceFixSetting(interaction, this, this.ctx),
+        new FixerStrategySetting(interaction, this, this.ctx),
+        new FixerManagersSetting(interaction, this, this.ctx),
+        new LanguageSetting(interaction, this, this.ctx),
+      );
+    }
     this.settings = Object.fromEntries(all.map((s) => [s.id, s]));
     this.selected_id = null;
   }
@@ -1997,9 +2022,11 @@ export class SettingsView {
   }
 
   async build(): Promise<void> {
-    await this.ctx.guild.discordObject.members
-      .fetch({ user: this.bot.user!.id, force: true })
-      .catch(() => {});
+    if (!this.ctx.isUserMode) {
+      await this.ctx.guild.discordObject.members
+        .fetch({ user: this.bot.user!.id, force: true })
+        .catch(() => {});
+    }
     this.callbacks.clear();
     const items: Array<RowItem> = [];
     if (this.selected_id !== null && this.settings[this.selected_id]) {

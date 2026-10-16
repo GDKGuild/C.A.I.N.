@@ -16,7 +16,7 @@ import {
   Webhook,
   WebhookMessageCreateOptions,
 } from 'discord.js';
-import { Filter, Guild } from './db';
+import { Filter, Guild, User, type WebsiteConfig } from './db';
 import { type EmbeddableUrl } from './markdown';
 import { websites, type WebsiteLink } from './websites';
 import { groupItems, safeSend } from './utils';
@@ -24,38 +24,43 @@ import { t, resolveLocale } from './i18n';
 
 export type GuildChannel = TextChannel | NewsChannel | ThreadChannel;
 
-export function getWebsite(guild: Guild, url: string, spoiler = false): WebsiteLink | null {
+export function getWebsite(config: WebsiteConfig, url: string, spoiler = false): WebsiteLink | null {
   for (const website of websites) {
-    const link = website.ifValid(guild, url, spoiler);
+    const link = website.ifValid(config, url, spoiler);
     if (link) return link;
   }
   return null;
 }
 
-export function filterFixableLinks(links: EmbeddableUrl[], guild: Guild): WebsiteLink[] {
+export function filterFixableLinks(links: EmbeddableUrl[], config: WebsiteConfig): WebsiteLink[] {
   const out: WebsiteLink[] = [];
   for (const { url, spoiler } of links) {
-    const link = getWebsite(guild, url, spoiler);
+    const link = getWebsite(config, url, spoiler);
     if (link) out.push(link);
   }
   return out;
 }
 
-export async function fixEmbeds(originalMessage: Message, guild: Guild, links: WebsiteLink[], client: Client): Promise<void> {
+export async function fixEmbeds(originalMessage: Message, config: WebsiteConfig, links: WebsiteLink[], client: Client): Promise<void> {
   const channel = originalMessage.channel as GuildChannel;
-  const me = originalMessage.guild?.members.me;
-  if (!me || !channel.isTextBased()) return;
-  const permissions = channel.permissionsFor(me);
-  if (!permissions) return;
-  if (
-    !(permissions.has(PermissionFlagsBits.SendMessages) && permissions.has(PermissionFlagsBits.EmbedLinks)) ||
-    (channel.isThread() && (channel.locked || channel.archived))
-  ) {
-    return;
+  const me = originalMessage.guild?.members.me ?? null;
+  let permissions: PermissionsBitField;
+  if (me === null) {
+    permissions = new PermissionsBitField();
+  } else {
+    const channelPerms = channel.isTextBased() ? channel.permissionsFor(me) : null;
+    if (
+      channelPerms === null ||
+      (channel.isThread() && (channel.locked || channel.archived)) ||
+      !(channelPerms.has(PermissionFlagsBits.SendMessages) && channelPerms.has(PermissionFlagsBits.EmbedLinks))
+    ) {
+      return;
+    }
+    permissions = channelPerms;
   }
 
-  if (!guild.reply_as_original_author_replica) {
-    void channel.sendTyping();
+  if (!config.reply_as_original_author_replica) {
+    await safeSend(channel.sendTyping(), { forbidden: true });
   }
 
   const rendered: WebsiteLink[] = [];
@@ -63,7 +68,7 @@ export async function fixEmbeds(originalMessage: Message, guild: Guild, links: W
     if (await link.render()) rendered.push(link);
   }
   let [notSent, messages] =
-    rendered.length > 0 ? await sendFixedLinks(rendered, guild, originalMessage, client) : [[], []];
+    rendered.length > 0 ? await sendFixedLinks(rendered, config, originalMessage, client) : [[], []];
 
   const allSent: Array<[Message, WebsiteLink[]]> = [];
   let toDelete: Message[] = [];
@@ -83,7 +88,7 @@ export async function fixEmbeds(originalMessage: Message, guild: Guild, links: W
           if (await link.retryNextFixer()) retried.push(link);
         }
         if (retried.length > 0) {
-          const [notSent2, messages2] = await sendFixedLinks(retried, guild, originalMessage, client);
+          const [notSent2, messages2] = await sendFixedLinks(retried, config, originalMessage, client);
           notSent.push(...notSent2);
           nextPending.push(...messages2);
         }
@@ -100,19 +105,20 @@ export async function fixEmbeds(originalMessage: Message, guild: Guild, links: W
     console.warn(`message(s) failed to send: ${notSent.length}`);
   }
   if (messages.length > 0 && toDelete.length === 0 && notSent.length === 0) {
-    await editOriginalMessage(guild, originalMessage, permissions, client);
+    await editOriginalMessage(config, originalMessage, permissions, client);
   }
   // ponytail: prompt skipped when webhook-attributed but the webhook is unavailable (no ManageWebhooks)
-  const webhook = guild.reply_as_original_author_replica ? await getOrCreateWebhook(channel, client) : null;
+  const webhook = config.reply_as_original_author_replica ? await getOrCreateWebhook(channel, client) : null;
   const usedMystery = allSent.some(([, groupLinks]) => groupLinks.some((l) => l.usedMysteryFixer));
-  if (!usedMystery && allSent.length > 0 && (!guild.reply_as_original_author_replica || webhook !== null)) {
-    await registerRevertPrompt(originalMessage, allSent, webhook, resolveLocale(guild));
+  if (!usedMystery && allSent.length > 0 && (!config.reply_as_original_author_replica || webhook !== null)) {
+    const locale = originalMessage.guildId ? resolveLocale(Guild.find(originalMessage.guildId)) : resolveLocale(null);
+    await registerRevertPrompt(originalMessage, allSent, webhook, locale);
   }
 }
 
 export async function sendFixedLinks(
   renderedLinks: WebsiteLink[],
-  guild: Guild,
+  config: WebsiteConfig,
   originalMessage: Message,
   client: Client,
 ): Promise<[Array<[string, WebsiteLink[]]>, Array<[Message, WebsiteLink[]]>]> {
@@ -121,23 +127,23 @@ export async function sendFixedLinks(
   const linksFailed: Array<[string, WebsiteLink[]]> = [];
 
   const grouped = groupItems(renderedLinks, 2000, '\n', (link) => link.rendered ?? '');
-  const webhook = guild.reply_as_original_author_replica ? await getOrCreateWebhook(channel, client) : null;
+  const webhook = config.reply_as_original_author_replica ? await getOrCreateWebhook(channel, client) : null;
 
   for (let i = 0; i < grouped.length; i++) {
     const [messageContent, linksInGroup] = grouped[i];
     let coro: Promise<Message>;
     if (webhook) {
-      coro = webhookSend(webhook, originalMessage, messageContent, guild.reply_silently);
-    } else if (i === 0 && guild.reply_to_message) {
+      coro = webhookSend(webhook, originalMessage, messageContent, config.reply_silently);
+    } else if (i === 0 && config.reply_to_message) {
       coro = originalMessage.reply({
         content: messageContent,
-        flags: guild.reply_silently ? [MessageFlags.SuppressNotifications] : undefined,
+        flags: config.reply_silently ? [MessageFlags.SuppressNotifications] : undefined,
         allowedMentions: { repliedUser: false },
       });
     } else {
       coro = channel.send({
         content: messageContent,
-        flags: guild.reply_silently ? [MessageFlags.SuppressNotifications] : undefined,
+        flags: config.reply_silently ? [MessageFlags.SuppressNotifications] : undefined,
       });
     }
     const [sent, msg] = await safeSend(coro, {
@@ -250,14 +256,14 @@ function waitForMessageUpdate(
 }
 
 export async function editOriginalMessage(
-  guild: Guild,
+  config: WebsiteConfig,
   message: Message,
   permissions: PermissionsBitField,
   client: Client,
 ): Promise<void> {
-  if (!permissions.has(PermissionFlagsBits.ManageMessages) || guild.original_message === 'nothing') return;
+  if (!permissions.has(PermissionFlagsBits.ManageMessages) || config.original_message === 'nothing') return;
 
-  if (guild.original_message === 'delete') {
+  if (config.original_message === 'delete') {
     await safeSend(message.delete(), { notFound: true, forbidden: true });
     return;
   }
@@ -307,7 +313,12 @@ async function registerRevertPrompt(originalMessage: Message, allSent: Array<[Me
   const guildId = originalMessage.guildId;
   const isBot = originalMessage.author.bot;
   const member = !isBot && guildId ? Filter.find('members', guildId, { id: originalMessage.author.id }) : undefined;
-  const variant = isBot ? 'prompt' : promptVariant(member?.prompt_count ?? 0, member?.keep_always ?? false);
+  const user = !isBot && !guildId ? User.find(originalMessage.author.id) : undefined;
+  const variant = isBot
+    ? 'prompt'
+    : guildId
+      ? promptVariant(member?.prompt_count ?? 0, member?.keep_always ?? false)
+      : promptVariant(user?.prompt_count ?? 0, user?.keep_always ?? false);
   if (variant === 'skip') return;
 
   const token = Math.random().toString(36).slice(2, 10);
@@ -330,10 +341,15 @@ async function registerRevertPrompt(originalMessage: Message, allSent: Array<[Me
     revertRegistry.delete(token);
   }, 60_000);
   revertRegistry.set(token, { senderId: originalMessage.author.id, fixed, webhook, timer });
-  if (variant === 'prompt' && !isBot && guildId) {
-    Filter.findOrCreate('members', guildId, { id: originalMessage.author.id, bot: false }).update({
-      prompt_count: (member?.prompt_count ?? 0) + 1,
-    });
+  if (variant === 'prompt' && !isBot) {
+    if (guildId) {
+      Filter.findOrCreate('members', guildId, { id: originalMessage.author.id, bot: false }).update({
+        prompt_count: (member?.prompt_count ?? 0) + 1,
+      });
+    } else {
+      const u = User.findOrCreate(originalMessage.author.id);
+      u.update({ prompt_count: u.prompt_count + 1 });
+    }
   }
 }
 
@@ -371,12 +387,18 @@ export async function handleRevertInteraction(interaction: MessageComponentInter
       }),
     );
   } else if (variant === 'offer_yes') {
-    const guildId = interaction.guildId;
-    if (guildId) Filter.findOrCreate('members', guildId, { id: interaction.user.id, bot: false }).update({ keep_always: true });
+    if (interaction.guildId) {
+      Filter.findOrCreate('members', interaction.guildId, { id: interaction.user.id, bot: false }).update({ keep_always: true });
+    } else {
+      User.findOrCreate(interaction.user.id).update({ keep_always: true });
+    }
     await interaction.reply({ content: t('revert.offer.enabled', {}, locale), flags: MessageFlags.Ephemeral }).catch(() => {});
   } else if (variant === 'offer_no') {
-    const guildId = interaction.guildId;
-    if (guildId) Filter.findOrCreate('members', guildId, { id: interaction.user.id, bot: false }).update({ prompt_count: 0 });
+    if (interaction.guildId) {
+      Filter.findOrCreate('members', interaction.guildId, { id: interaction.user.id, bot: false }).update({ prompt_count: 0 });
+    } else {
+      User.findOrCreate(interaction.user.id).update({ prompt_count: 0 });
+    }
   }
   await safeSend((interaction.message as Message).delete(), { notFound: true, forbidden: true });
 }

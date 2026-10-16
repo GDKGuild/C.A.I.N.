@@ -281,5 +281,8 @@
   "settings.language.name": "UI言語",
   "settings.language.description": "このサーバーでボットが返信に使う言語",
   "settings.language.content": "**現在のUI言語:** %{language}",
-  "settings.language.auto": "自動（各メンバーのDiscord言語に従う）"
+  "settings.language.auto": "自動（各メンバーのDiscord言語に従う）",
+  "fixLinks.errors.no_links": "このメッセージに修正可能なリンクはありません。",
+  "fixLinks.result": "%{count}件のリンクを修正しました。",
+  "fixLinks.errors.failed": "リンクの修正中にエラーが発生しました。"
 }

@@ -281,5 +281,8 @@
   "settings.language.name": "Jièmiàn yǔyán",
   "settings.language.description": "Jīqìrén zài cǐ sìfúqì zhōng huífù suǒ yòng de yǔyán",
   "settings.language.content": "**Mùqián jièmiàn yǔyán:** %{language}",
-  "settings.language.auto": "Zìdòng (gēnsuí měi wèi chéngyuán de Discord yǔyán)"
+  "settings.language.auto": "Zìdòng (gēnsuí měi wèi chéngyuán de Discord yǔyán)",
+  "fixLinks.errors.no_links": "Cǐ xùnxī zhōng méiyǒu kě xiūfù de liánjié.",
+  "fixLinks.result": "Yǐ xiūfù %{count} gè liánjié.",
+  "fixLinks.errors.failed": "Xiūfù liánjié shí fāshēng cuòwù."
 }

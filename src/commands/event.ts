@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, Client, SlashCommandBuilder, SlashCommandOptionsOnlyBuilder } from 'discord.js';
+import { ChatInputCommandInteraction, Client, InteractionContextType, SlashCommandBuilder, SlashCommandOptionsOnlyBuilder } from 'discord.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import config from '../../config.json';
@@ -21,7 +21,7 @@ export function eventCommandBuilder(): SlashCommandOptionsOnlyBuilder {
   return new SlashCommandBuilder()
     .setName(config.event_command.name)
     .setDescription(t('event.command.description'))
-    .setDMPermission(false)
+    .setContexts([InteractionContextType.Guild])
     .addUserOption((o) =>
       o.setName('user').setDescription(t('event.option.user.description')).setRequired(false),
     );
@@ -47,6 +47,7 @@ export function pickDialogueKey(context: HealContext): string {
 
 export async function eventCommand(client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
   const botName = client.user?.username ?? 'C.A.I.N.';
+  const invokerMention = interaction.user.toString();
   const selected = interaction.options.getUser('user');
   const context = healContext(selected ? selected.id : null, client.user?.id ?? '');
   const guild = interaction.guildId ? GuildModel.find(interaction.guildId) : null;
@@ -54,12 +55,15 @@ export async function eventCommand(client: Client, interaction: ChatInputCommand
 
   let actor: string;
   let target: string;
-  if (context === 'bot') {
-    actor = interaction.user.displayName;
+  if (context === 'self') {
+    actor = botName;
+    target = t('event.you', {}, locale);
+  } else if (context === 'bot') {
+    actor = invokerMention;
     target = botName;
   } else {
-    actor = botName;
-    target = selected ? selected.toString() : t('event.you', {}, locale);
+    actor = invokerMention;
+    target = selected!.toString();
   }
 
   const content = t(pickDialogueKey(context), { actor, target }, locale);

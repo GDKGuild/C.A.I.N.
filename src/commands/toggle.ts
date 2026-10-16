@@ -1,5 +1,5 @@
 import { ChatInputCommandInteraction, Client, MessageFlags, SlashCommandBuilder, SlashCommandOptionsOnlyBuilder } from 'discord.js';
-import { Filter, Guild as GuildModel } from '../db';
+import { Filter, Guild as GuildModel, User } from '../db';
 import { t, resolveLocale } from '../i18n';
 
 export type ToggleAction = 'enable' | 'disable';
@@ -23,11 +23,21 @@ export function applyKeepToggle(guild: GuildModel, userId: string, keep: boolean
   return keep ? 'keep_on' : 'keep_off';
 }
 
+export function applyToggleDM(user: User, action: ToggleAction): ToggleResult {
+  if (action === 'enable') {
+    if (user.dm_fixing) return 'already_enabled';
+    user.update({ dm_fixing: true });
+    return 'enabled';
+  }
+  if (!user.dm_fixing) return 'already_disabled';
+  user.update({ dm_fixing: false });
+  return 'disabled';
+}
+
 export function toggleCommandBuilder(): SlashCommandOptionsOnlyBuilder {
   return new SlashCommandBuilder()
     .setName(t('toggle.command.name'))
     .setDescription(t('toggle.command.description'))
-    .setDMPermission(false)
     .addStringOption((o) =>
       o
         .setName(t('toggle.option.action.name'))
@@ -44,7 +54,13 @@ export function toggleCommandBuilder(): SlashCommandOptionsOnlyBuilder {
 
 export async function toggleCommand(_client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild) {
-    await interaction.reply({ content: t('toggle.errors.guild_only', {}, interaction.locale), flags: MessageFlags.Ephemeral });
+    const action = interaction.options.getString('action') as ToggleAction | null;
+    if (!action) {
+      await interaction.reply({ content: t('toggle.errors.no_option', {}, interaction.locale), flags: MessageFlags.Ephemeral });
+      return;
+    }
+    const result = applyToggleDM(User.findOrCreate(interaction.user.id), action);
+    await interaction.reply({ content: t(`toggle.result.${result}`, {}, interaction.locale), flags: MessageFlags.Ephemeral });
     return;
   }
   const guild = GuildModel.findOrCreate(interaction.guild.id);

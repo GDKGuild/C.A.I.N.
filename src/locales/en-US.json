@@ -202,9 +202,9 @@
   "event.self.3": "%{actor} makes your tummy bulge",
   "event.other.0": "%{actor} rapes %{target}",
   "event.other.1": "%{actor} molests %{target}",
-  "event.other.2": "%{actor} fills up %{target} womb, they're now pregnant",
+  "event.other.2": "%{actor} fills up %{target}'s womb, they're now pregnant",
   "event.bot.0": "%{actor} raped %{target}",
-  "event.bot.1": "%{actor} molests %{target}",
+  "event.bot.1": "%{actor} molested %{target}",
   "event.bot.2": "%{actor} impregnated %{target}",
   "event.you": "you",
   "settings.original_message.name": "Original message",
@@ -281,5 +281,8 @@
   "settings.custom_websites.modal.error.length": "The website domain and fixed domain must be non-empty (e.g. 'mywebsite.com')",
   "settings.custom_websites.modal.error.length_name": "The length of the website name must be less than %{max} characters",
   "settings.custom_websites.modal.error.length_domain": "The length of the website domain must be less than %{max} characters",
-  "misc.discord_discovery_description": "C.A.I.N. is a Discord bot that fixes social media embeds,\nusing online services (such as [FxTwitter](https://github.com/FixTweet/FxTwitter))\n\n**In concrete terms, this bot automatically repost social media links as a 'fixed' version\nthat contains a better embed (that allows to play videos directly in Discord, for example).**\n\n## Features & Highlights\n\n- Supports Twitter, Nitter, Instagram, TikTok, Reddit, Threads, Bluesky, Snapchat, Facebook,\n  Pixiv, Twitch, Spotify, DeviantArt, Newgrounds, Mastodon, Tumblr, BiliBili, Pinterest, IFunny, YouTube, Imgur,\n  Weibo, Fur Affinity, Rule34.xxx, Danbooru, Gelbooru, e621, e926, Realbooru, Hypnohub, Konachan, Yande.re,\n  Derpibooru, Rule34.paheal, XBooru, TBIB, and any custom websites of your choice\n  and any custom websites of your choice\n- Posts translation\n- Disable by website, channel, member, role or keyword\n- Highly customizable behavior and appearance\n- Multiple languages supported\n- Modern interface for settings\n- Can respond to bots and webhooks\n- Respect markdown\n- Respect privacy\n- Source-available\n\n## Usage\n\nSimply send a message containing a compatible social media link, and the bot will remove the embed if any and\nautomatically repost it as a 'fixed' link.\n\nYou can also ignore a link by adding \"fxignore\" to your message: the normal embed will be kept as is.\n\nYou can manage the bot's settings with the `/settings` command.\n\nLastly, you can use the `/about` command any time to get more information about the bot and to get help.\n"
+  "misc.discord_discovery_description": "C.A.I.N. is a Discord bot that fixes social media embeds,\nusing online services (such as [FxTwitter](https://github.com/FixTweet/FxTwitter))\n\n**In concrete terms, this bot automatically repost social media links as a 'fixed' version\nthat contains a better embed (that allows to play videos directly in Discord, for example).**\n\n## Features & Highlights\n\n- Supports Twitter, Nitter, Instagram, TikTok, Reddit, Threads, Bluesky, Snapchat, Facebook,\n  Pixiv, Twitch, Spotify, DeviantArt, Newgrounds, Mastodon, Tumblr, BiliBili, Pinterest, IFunny, YouTube, Imgur,\n  Weibo, Fur Affinity, Rule34.xxx, Danbooru, Gelbooru, e621, e926, Realbooru, Hypnohub, Konachan, Yande.re,\n  Derpibooru, Rule34.paheal, XBooru, TBIB, and any custom websites of your choice\n  and any custom websites of your choice\n- Posts translation\n- Disable by website, channel, member, role or keyword\n- Highly customizable behavior and appearance\n- Multiple languages supported\n- Modern interface for settings\n- Can respond to bots and webhooks\n- Respect markdown\n- Respect privacy\n- Source-available\n\n## Usage\n\nSimply send a message containing a compatible social media link, and the bot will remove the embed if any and\nautomatically repost it as a 'fixed' link.\n\nYou can also ignore a link by adding \"fxignore\" to your message: the normal embed will be kept as is.\n\nYou can manage the bot's settings with the `/settings` command.\n\nLastly, you can use the `/about` command any time to get more information about the bot and to get help.\n",
+  "fixLinks.errors.no_links": "No fixable links found in this message.",
+  "fixLinks.result": "Fixed %{count} link(s).",
+  "fixLinks.errors.failed": "Something went wrong while fixing the links."
 }

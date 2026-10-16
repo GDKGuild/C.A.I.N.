@@ -18,7 +18,7 @@ import {
   UserSelectMenuBuilder,
   RoleSelectMenuBuilder,
 } from 'discord.js';
-import { CustomFixer, FixerManager, Guild as GuildModel } from '../db';
+import { CustomFixer, FixerManager, Guild as GuildModel, User } from '../db';
 import { getFixers } from '../fixers';
 import { t, resolveLocale } from '../i18n';
 import { isAdmin, isBotOwner, isServerOwner } from '../permissions';
@@ -87,9 +87,9 @@ async function reachable(domain: string): Promise<boolean> {
   }
 }
 
-function buildDescription(guild: GuildModel, locale: string): string {
+function buildDescription(config: GuildModel | User, locale: string): string {
   const blocks: string[] = [];
-  const customs = CustomFixer.findAllByGuild(guild.id);
+  const customs = CustomFixer.findAllByGuild(config.id);
 
   for (const cls of websites) {
     if (cls === CustomLink) continue; // custom websites: not fixer sites
@@ -132,7 +132,7 @@ function buildRemoveButton(customsCount: number, locale: string): ButtonBuilder 
 }
 
 class ListController {
-  guild: GuildModel;
+  config: GuildModel | User;
   key: string;
   callbacks = new Map<string, Callback>();
   private deleteTimer: NodeJS.Timeout | null = null;
@@ -141,10 +141,10 @@ class ListController {
   private removing = false;
 
   constructor(interaction: ChatInputCommandInteraction) {
-    if (!interaction.guild) throw new Error('list view requires a guild');
-    this.guild = GuildModel.findOrCreate(interaction.guild.id);
-    this.key = `${interaction.guild.id}:${interaction.user.id}`;
-    this.locale = resolveLocale(this.guild, interaction.locale);
+    const guild = interaction.guild;
+    this.config = guild ? GuildModel.findOrCreate(guild.id) : User.findOrCreate(interaction.user.id);
+    this.key = `${guild?.id ?? ''}:${interaction.user.id}`;
+    this.locale = resolveLocale(guild ? (this.config as GuildModel) : null, interaction.locale);
   }
 
   register(customId: string, callback: Callback): void {
@@ -152,14 +152,14 @@ class ListController {
   }
 
   private buildComponents(): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
-    const customsCount = CustomFixer.findAllByGuild(this.guild.id).length;
+    const customsCount = CustomFixer.findAllByGuild(this.config.id).length;
     const items: RowItem[] = [
       { builder: buildAddButton(this.locale) },
       { builder: buildRemoveButton(customsCount, this.locale) },
     ];
 
     if (this.removing && customsCount > 0) {
-      const customs = CustomFixer.findAllByGuild(this.guild.id);
+      const customs = CustomFixer.findAllByGuild(this.config.id);
       const options = customs.map((c) => {
         const label = `${nameById(c.website)} — ${c.fix_domain}`;
         return new StringSelectMenuOptionBuilder().setLabel(label).setValue(String(c.id));
@@ -176,7 +176,7 @@ class ListController {
   async refresh(interaction: Interactive): Promise<void> {
     const embed = new EmbedBuilder()
       .setTitle(t('list.title', {}, this.locale))
-      .setDescription(buildDescription(this.guild, this.locale));
+      .setDescription(buildDescription(this.config, this.locale));
     this.setFooter(embed);
     try {
       if (interaction.isModalSubmit() && !interaction.isFromMessage()) {
@@ -199,7 +199,7 @@ class ListController {
 
     const embed = new EmbedBuilder()
       .setTitle(t('list.title', {}, this.locale))
-      .setDescription(buildDescription(this.guild, this.locale));
+      .setDescription(buildDescription(this.config, this.locale));
     this.setFooter(embed);
 
     try {
@@ -211,7 +211,7 @@ class ListController {
   }
 
   private setFooter(embed: EmbedBuilder): void {
-    const strategyLabel = t(`settings.fixer_strategy.strategy.${this.guild.fixer_strategy}`, {}, this.locale);
+    const strategyLabel = t(`settings.fixer_strategy.strategy.${this.config.fixer_strategy}`, {}, this.locale);
     embed.setFooter({
       text: `${t('list.footer', { strategy: strategyLabel, settings_command: t('settings.command.name', {}, this.locale) }, this.locale)}`,
     });
@@ -259,7 +259,7 @@ class ListController {
         return;
       }
     }
-    const customsCount = CustomFixer.findAllByGuild(this.guild.id).length;
+    const customsCount = CustomFixer.findAllByGuild(this.config.id).length;
     if (customsCount === 0) {
       await interaction.reply({ content: t('list.error.no_custom', {}, this.locale), flags: MessageFlags.Ephemeral }).catch(() => {});
       return;
@@ -301,7 +301,7 @@ class ListController {
 
     const { website, domain } = parsed;
     const registry = getFixers(website);
-    const customs = CustomFixer.findAllByGuild(this.guild.id).filter((c) => c.website === website);
+    const customs = CustomFixer.findAllByGuild(this.config.id).filter((c) => c.website === website);
     if ((SOURCE_DOMAINS[website] ?? []).includes(domain)) {
       await interaction.reply({ content: t('list.add_modal.error.own_domain', {}, this.locale), flags: MessageFlags.Ephemeral }).catch(() => {});
       return;
@@ -319,7 +319,7 @@ class ListController {
       return;
     }
 
-    CustomFixer.create(this.guild.id, website, domain);
+    CustomFixer.create(this.config.id, website, domain);
     this.removing = false;
     await this.refresh(interaction);
   }
@@ -360,11 +360,7 @@ export async function handleListInteraction(interaction: Interactive): Promise<v
   }
 }
 
-export async function listCommand(client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!interaction.guild) {
-    await interaction.reply({ content: 'This command can only be used in a server.', flags: MessageFlags.Ephemeral });
-    return;
-  }
+export async function listCommand(_client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
   const ctrl = new ListController(interaction);
   ctrl.register('fixer_add', (i) => ctrl.addAction(i));
   ctrl.register('fixer_remove', (i) => ctrl.removeAction(i));

@@ -198,9 +198,9 @@
   "event.self.3": "%{actor} makes your tummy bulge",
   "event.other.0": "%{actor} rapes %{target}",
   "event.other.1": "%{actor} molests %{target}",
-  "event.other.2": "%{actor} fills up %{target} womb, they're now pregnant",
+  "event.other.2": "%{actor} fills up %{target}'s womb, they're now pregnant",
   "event.bot.0": "%{actor} raped %{target}",
-  "event.bot.1": "%{actor} molests %{target}",
+  "event.bot.1": "%{actor} molested %{target}",
   "event.bot.2": "%{actor} impregnated %{target}",
   "event.you": "you",
   "settings.original_message.name": "Original message",
@@ -281,5 +281,8 @@
   "settings.language.name": "UI language",
   "settings.language.description": "Language the bot replies in for this server",
   "settings.language.content": "**Current UI language:** %{language}",
-  "settings.language.auto": "Auto (follow each member's Discord language)"
+  "settings.language.auto": "Auto (follow each member's Discord language)",
+  "fixLinks.errors.no_links": "No fixable links found in this message.",
+  "fixLinks.result": "Fixed %{count} link(s).",
+  "fixLinks.errors.failed": "Something went wrong while fixing the links."
 }

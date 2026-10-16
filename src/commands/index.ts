@@ -1,4 +1,14 @@
-import { ChatInputCommandInteraction, Client, REST, Routes, SlashCommandBuilder, SlashCommandOptionsOnlyBuilder } from 'discord.js';
+import {
+  ApplicationIntegrationType,
+  ChatInputCommandInteraction,
+  Client,
+  ContextMenuCommandBuilder,
+  InteractionContextType,
+  REST,
+  Routes,
+  SlashCommandBuilder,
+  SlashCommandOptionsOnlyBuilder,
+} from 'discord.js';
 import config from '../../config.json';
 import { t } from '../i18n';
 import { TOKEN } from '../config';
@@ -7,10 +17,17 @@ import { settingsCommand, settingsCommandBuilder } from './settings';
 import { listCommand } from './list';
 import { toggleCommand, toggleCommandBuilder } from './toggle';
 import { eventCommand, eventCommandBuilder } from './event';
+import { fixLinksCommandBuilder } from './fixLinks';
 
 export interface Command {
-  builder: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder;
+  builder: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder | ContextMenuCommandBuilder;
   handler: (client: Client, interaction: ChatInputCommandInteraction) => Promise<void>;
+}
+
+function installable(builder: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder): SlashCommandBuilder | SlashCommandOptionsOnlyBuilder {
+  return builder
+    .setIntegrationTypes([ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall])
+    .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]);
 }
 
 export function getCommands(): Command[] {
@@ -18,29 +35,31 @@ export function getCommands(): Command[] {
 
   if (config.about_command) {
     commands.push({
-      builder: new SlashCommandBuilder()
-        .setName(t('about.command.name'))
-        .setDescription(t('about.command.description'))
-        .setDMPermission(false),
+      builder: installable(
+        new SlashCommandBuilder()
+          .setName(t('about.command.name'))
+          .setDescription(t('about.command.description')),
+      ),
       handler: aboutCommand,
     });
   }
 
   commands.push({
-    builder: settingsCommandBuilder(),
+    builder: installable(settingsCommandBuilder()),
     handler: settingsCommand,
   });
 
   commands.push({
-    builder: new SlashCommandBuilder()
-      .setName(t('list.command.name'))
-      .setDescription(t('list.command.description'))
-      .setDMPermission(false),
+    builder: installable(
+      new SlashCommandBuilder()
+        .setName(t('list.command.name'))
+        .setDescription(t('list.command.description')),
+    ),
     handler: listCommand,
   });
 
   commands.push({
-    builder: toggleCommandBuilder(),
+    builder: installable(toggleCommandBuilder()),
     handler: toggleCommand,
   });
 
@@ -66,7 +85,6 @@ export async function registerCommands(client: Client): Promise<void> {
 
   if (!client.application?.id) return;
   const rest = new REST().setToken(TOKEN);
-  await rest.put(Routes.applicationCommands(client.application.id), {
-    body: commands.map((c) => c.builder.toJSON()),
-  });
+  const body = [...commands.map((c) => c.builder.toJSON()), fixLinksCommandBuilder().toJSON()];
+  await rest.put(Routes.applicationCommands(client.application.id), { body });
 }

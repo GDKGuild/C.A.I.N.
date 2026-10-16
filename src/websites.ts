@@ -1,4 +1,4 @@
-import { CustomWebsite, FixerSelection, Guild } from './db';
+import { CustomWebsite, FixerSelection, type WebsiteConfig } from './db';
 import { Fixer, getFixers, nextFixerIndex, shouldUseMysteryFixer } from './fixers';
 
 export function escapeRe(s: string): string {
@@ -48,7 +48,7 @@ function generateRoutes(
 }
 
 export abstract class WebsiteLink {
-  guild: Guild;
+  config: WebsiteConfig;
   url: string;
   spoiler: boolean;
   private _rendered: string | null = null;
@@ -59,8 +59,8 @@ export abstract class WebsiteLink {
   private retries = 0;
   private maxRetries = -1;
 
-  constructor(guild: Guild, url: string, spoiler = false) {
-    this.guild = guild;
+  constructor(config: WebsiteConfig, url: string, spoiler = false) {
+    this.config = config;
     this.url = url;
     this.spoiler = spoiler;
   }
@@ -126,7 +126,7 @@ export abstract class WebsiteLink {
 }
 
 export class GenericWebsiteLink extends WebsiteLink {
-  static id = '';
+  static id: keyof WebsiteConfig;
   static hypertextLabel = '';
   static fixerName = '';
   static fixDomain = '';
@@ -138,19 +138,19 @@ export class GenericWebsiteLink extends WebsiteLink {
   match: RegExpExecArray | null;
   repl: string | null;
 
-  constructor(guild: Guild, url: string, spoiler = false) {
-    super(guild, url, spoiler);
+  constructor(config: WebsiteConfig, url: string, spoiler = false) {
+    super(config, url, spoiler);
     const [match, repl] = this.getMatchAndRepl();
     this.match = match;
     this.repl = repl;
   }
 
-  static ifValid(guild: Guild, url: string, spoiler = false): GenericWebsiteLink | null {
+  static ifValid(config: WebsiteConfig, url: string, spoiler = false): GenericWebsiteLink | null {
     const cls = this as unknown as typeof GenericWebsiteLink;
-    if (!guild[cls.id as keyof Guild]) {
+    if (!config[cls.id]) {
       return null;
     }
-    const website = new cls(guild, url, spoiler);
+    const website = new cls(config, url, spoiler);
     return website.isValid() ? website : null;
   }
 
@@ -205,8 +205,8 @@ export class GenericWebsiteLink extends WebsiteLink {
     if (!this.staticC.isTranslation) {
       return '';
     }
-    return this.guild[`${this.staticC.id}_tr` as keyof Guild]
-      ? `/${this.guild.lang}`
+    return this.config[`${this.staticC.id}_tr` as keyof WebsiteConfig]
+      ? `/${this.config.lang}`
       : '';
   }
 
@@ -215,7 +215,7 @@ export class GenericWebsiteLink extends WebsiteLink {
       return '';
     }
     // noinspection
-    const view = this.guild[`${this.staticC.id}_view` as keyof Guild] as string;
+    const view = this.config[`${this.staticC.id}_view` as keyof WebsiteConfig] as string;
     return this.staticC.subdomains[view] ?? '';
   }
 
@@ -242,13 +242,13 @@ export class GenericWebsiteLink extends WebsiteLink {
     if (fixers.length > 0) {
       let fixerIndex = this.fixerOverride;
       if (fixerIndex === null) {
-        const selection = FixerSelection.findByGuildAndWebsite(this.guild.id, this.staticC.id);
+        const selection = FixerSelection.findByGuildAndWebsite(this.config.id, this.staticC.id);
         if (selection) {
           const selected = fixers.findIndex((f) => f.domain === selection.fix_domain);
           if (selected !== -1) fixerIndex = selected;
         }
         if (fixerIndex === null) {
-          fixerIndex = nextFixerIndex(this.staticC.id, fixers, this.guild.fixer_strategy);
+          fixerIndex = nextFixerIndex(this.staticC.id, fixers, this.config.fixer_strategy);
         }
       }
       const fixer = fixers[fixerIndex];
@@ -266,7 +266,7 @@ export class GenericWebsiteLink extends WebsiteLink {
 
   protected resolveFixerList(): Array<{ domain: string; name: string } & Partial<Fixer>> {
     const registry = getFixers(this.staticC.id);
-    const customs = this.guild.custom_fixers
+    const customs = this.config.custom_fixers
       .filter((custom) => custom.website === this.staticC.id)
       .map<Fixer>((custom) => ({ domain: custom.fix_domain, name: custom.fix_domain }));
     return [...registry, ...customs];
@@ -281,7 +281,7 @@ export class GenericWebsiteLink extends WebsiteLink {
   }
 
   private currentView(): string {
-    const view = this.guild[`${this.staticC.id}_view` as keyof Guild] as string;
+    const view = this.config[`${this.staticC.id}_view` as keyof WebsiteConfig] as string;
     return view ?? 'normal';
   }
 
@@ -353,7 +353,7 @@ export class EmbedEZLink extends GenericWebsiteLink {
 }
 
 export class TwitterLink extends GenericWebsiteLink {
-  static id = 'twitter';
+  static id = 'twitter' as const;
   static hypertextLabel = 'Tweet';
   static fixDomain = 'fxtwitter.com';
   static fixerName = 'FxTwitter';
@@ -374,7 +374,7 @@ export class TwitterLink extends GenericWebsiteLink {
     const [fixedUrl, fixedLabel] = await super.getFixedUrl();
     if (this.fixerOverride === null && shouldUseMysteryFixer(Math.random())) {
       this.usedMysteryFixer = true;
-      const view = (this.guild['twitter_view'] as string) ?? 'normal';
+      const view = (this.config['twitter_view'] as string) ?? 'normal';
       const subdomain = TwitterLink.subdomains[view] ?? '';
       return [
         this.getPatchedUrl(TwitterLink.mysteryDomain, subdomain, this.routeFixPostPathSegments()),
@@ -405,7 +405,7 @@ export class TwitterLink extends GenericWebsiteLink {
 }
 
 export class InstagramLink extends GenericWebsiteLink {
-  static id = 'instagram';
+  static id = 'instagram' as const;
   static hypertextLabel = 'Instagram';
   static fixDomain = 'oginstagram.com';
   static fixerName = 'OGInstagram';
@@ -423,7 +423,7 @@ export class InstagramLink extends GenericWebsiteLink {
 }
 
 export class TikTokLink extends GenericWebsiteLink {
-  static id = 'tiktok';
+  static id = 'tiktok' as const;
   static hypertextLabel = 'Tiktok';
   static fixDomain = 'tnktok.com';
   static fixerName = 'fxTikTok';
@@ -436,7 +436,7 @@ export class TikTokLink extends GenericWebsiteLink {
 }
 
 export class RedditLink extends GenericWebsiteLink {
-  static id = 'reddit';
+  static id = 'reddit' as const;
   static hypertextLabel = 'Reddit';
   static fixDomain = 'vxreddit.com';
   static fixerName = 'vxreddit';
@@ -448,7 +448,7 @@ export class RedditLink extends GenericWebsiteLink {
 }
 
 export class ThreadsLink extends GenericWebsiteLink {
-  static id = 'threads';
+  static id = 'threads' as const;
   static hypertextLabel = 'Threads';
   static fixDomain = 'drhong.ddns.net:9813';
   static isSsl = false;
@@ -460,7 +460,7 @@ export class ThreadsLink extends GenericWebsiteLink {
 }
 
 export class BlueskyLink extends GenericWebsiteLink {
-  static id = 'bluesky';
+  static id = 'bluesky' as const;
   static hypertextLabel = 'Bluesky';
   static fixDomain = 'fxbsky.app';
   static fixerName = 'FxBluesky';
@@ -473,7 +473,7 @@ export class BlueskyLink extends GenericWebsiteLink {
 }
 
 export class SnapchatLink extends EmbedEZLink {
-  static id = 'snapchat';
+  static id = 'snapchat' as const;
   static hypertextLabel = 'Snapchat';
   static routes = generateRoutes('snapchat.com', {
     '/p/:id1/:id2/:id3?': null,
@@ -483,7 +483,7 @@ export class SnapchatLink extends EmbedEZLink {
 }
 
 export class FacebookLink extends GenericWebsiteLink {
-  static id = 'facebook';
+  static id = 'facebook' as const;
   static hypertextLabel = 'Facebook';
   static fixDomain = 'facebed.seria.moe';
   static fixerName = 'facebed';
@@ -502,7 +502,7 @@ export class FacebookLink extends GenericWebsiteLink {
 }
 
 export class PixivLink extends GenericWebsiteLink {
-  static id = 'pixiv';
+  static id = 'pixiv' as const;
   static hypertextLabel = 'Pixiv';
   static fixDomain = 'phixiv.net';
   static fixerName = 'phixiv';
@@ -513,7 +513,7 @@ export class PixivLink extends GenericWebsiteLink {
 }
 
 export class TwitchLink extends GenericWebsiteLink {
-  static id = 'twitch';
+  static id = 'twitch' as const;
   static hypertextLabel = 'Twitch';
   static fixDomain = 'fxtwitch.seria.moe';
   static fixerName = 'fxtwitch';
@@ -523,7 +523,7 @@ export class TwitchLink extends GenericWebsiteLink {
 }
 
 export class SpotifyLink extends GenericWebsiteLink {
-  static id = 'spotify';
+  static id = 'spotify' as const;
   static hypertextLabel = 'Spotify';
   static fixDomain = 'fxspotify.com';
   static fixerName = 'fxspotify';
@@ -533,7 +533,7 @@ export class SpotifyLink extends GenericWebsiteLink {
 }
 
 export class DeviantArtLink extends GenericWebsiteLink {
-  static id = 'deviantart';
+  static id = 'deviantart' as const;
   static hypertextLabel = 'DeviantArt';
   static fixDomain = 'fixdeviantart.com';
   static fixerName = 'fixDeviantArt';
@@ -543,7 +543,7 @@ export class DeviantArtLink extends GenericWebsiteLink {
 }
 
 export class NewgroundsLink extends GenericWebsiteLink {
-  static id = 'newgrounds';
+  static id = 'newgrounds' as const;
   static hypertextLabel = 'Newgrounds';
   static fixDomain = 'fixnewgrounds.com';
   static fixerName = 'FixNewgrounds';
@@ -562,7 +562,7 @@ export class NewgroundsLink extends GenericWebsiteLink {
 }
 
 export class MastodonLink extends GenericWebsiteLink {
-  static id = 'mastodon';
+  static id = 'mastodon' as const;
   static hypertextLabel = 'Mastodon';
   static fixDomain = 'fxmas.to';
   static fixerName = 'FxMastodon';
@@ -580,7 +580,7 @@ export class MastodonLink extends GenericWebsiteLink {
 }
 
 export class TumblrLink extends GenericWebsiteLink {
-  static id = 'tumblr';
+  static id = 'tumblr' as const;
   static hypertextLabel = 'Tumblr';
   static fixDomain = 'tpmblr.com';
   static fixerName = 'fxtumblr';
@@ -610,7 +610,7 @@ export class TumblrLink extends GenericWebsiteLink {
 }
 
 export class BiliBiliLink extends GenericWebsiteLink {
-  static id = 'bilibili';
+  static id = 'bilibili' as const;
   static hypertextLabel = 'BiliBili';
   static fixDomain = 'vxbilibili.com';
   static fixerName = 'BiliFix';
@@ -639,7 +639,7 @@ export class BiliBiliLink extends GenericWebsiteLink {
 }
 
 export class IFunnyLink extends EmbedEZLink {
-  static id = 'ifunny';
+  static id = 'ifunny' as const;
   static hypertextLabel = 'IFunny';
   static routes = generateRoutes('ifunny.co', {
     '/:media_type(video|picture|gif)/:id': null,
@@ -647,7 +647,7 @@ export class IFunnyLink extends EmbedEZLink {
 }
 
 export class FurAffinityLink extends GenericWebsiteLink {
-  static id = 'furaffinity';
+  static id = 'furaffinity' as const;
   static hypertextLabel = 'Fur Affinity';
   static fixDomain = 'xfuraffinity.net';
   static fixerName = 'xfuraffinity';
@@ -657,7 +657,7 @@ export class FurAffinityLink extends GenericWebsiteLink {
 }
 
 export class YouTubeLink extends GenericWebsiteLink {
-  static id = 'youtube';
+  static id = 'youtube' as const;
   static hypertextLabel = 'YouTube';
   static fixDomain = 'koutube.com';
   static fixerName = 'Koutube';
@@ -670,7 +670,7 @@ export class YouTubeLink extends GenericWebsiteLink {
 }
 
 export class ImgurLink extends EmbedEZLink {
-  static id = 'imgur';
+  static id = 'imgur' as const;
   static hypertextLabel = 'Imgur';
   static routes = generateRoutes('imgur.com', {
     '/gallery/:slug_hash': null,
@@ -679,7 +679,7 @@ export class ImgurLink extends EmbedEZLink {
 }
 
 export class WeiboLink extends EmbedEZLink {
-  static id = 'weibo';
+  static id = 'weibo' as const;
   static hypertextLabel = 'Weibo';
   static routes = generateRoutes(['weibo.com', 'weibo.cn'], {
     '/:id/:hash': null,
@@ -687,7 +687,7 @@ export class WeiboLink extends EmbedEZLink {
 }
 
 export class GelbooruLink extends EmbedEZLink {
-  static id = 'imageboards';
+  static id = 'imageboards' as const;
   static isTranslation = false;
   static routes = generateRoutes(
     ['rule34.xxx', 'gelbooru.com', 'safebooru.org', 'realbooru.com', 'hypnohub.net', 'xbooru.com', 'tbib.org'],
@@ -706,7 +706,7 @@ export class GelbooruLink extends EmbedEZLink {
 }
 
 export class DanbooruLink extends EmbedEZLink {
-  static id = 'imageboards';
+  static id = 'imageboards' as const;
   static isTranslation = false;
   static hypertextLabel = 'Danbooru';
   static routes = generateRoutes(['danbooru.donmai.us'], {
@@ -715,7 +715,7 @@ export class DanbooruLink extends EmbedEZLink {
 }
 
 export class E621ngLink extends EmbedEZLink {
-  static id = 'imageboards';
+  static id = 'imageboards' as const;
   static isTranslation = false;
   static routes = generateRoutes(['e621.net', 'e926.net'], {
     '/posts/:id': null,
@@ -728,7 +728,7 @@ export class E621ngLink extends EmbedEZLink {
 }
 
 export class MoebooruLink extends EmbedEZLink {
-  static id = 'imageboards';
+  static id = 'imageboards' as const;
   static isTranslation = false;
   static routes = generateRoutes(['konachan.com', 'konachan.net', 'yande.re'], {
     '/post/show/:id/:slug?': null,
@@ -744,7 +744,7 @@ export class MoebooruLink extends EmbedEZLink {
 }
 
 export class PhilomenaLink extends EmbedEZLink {
-  static id = 'imageboards';
+  static id = 'imageboards' as const;
   static isTranslation = false;
   static hypertextLabel = 'Derpibooru';
   static routes = generateRoutes(['derpibooru.org'], {
@@ -753,7 +753,7 @@ export class PhilomenaLink extends EmbedEZLink {
 }
 
 export class ShimieLink extends EmbedEZLink {
-  static id = 'imageboards';
+  static id = 'imageboards' as const;
   static isTranslation = false;
   static hypertextLabel = 'Rule34';
   static routes = generateRoutes(['rule34.paheal.net'], {
@@ -762,7 +762,7 @@ export class ShimieLink extends EmbedEZLink {
 }
 
 export class PinterestLink extends EmbedEZLink {
-  static id = 'pinterest';
+  static id = 'pinterest' as const;
   static hypertextLabel = 'Pinterest';
   static routes = generateRoutes(['pinterest.com', 'pin.it'], {
     '/pin/:id': null,
@@ -777,9 +777,9 @@ export class CustomLink extends WebsiteLink {
   hypertextLabel: string | null = null;
   fixerDomain: string | null = null;
 
-  constructor(guild: Guild, url: string, spoiler = false) {
-    super(guild, url, spoiler);
-    const customWebsites = CustomWebsite.findAllByGuild(guild.id);
+  constructor(config: WebsiteConfig, url: string, spoiler = false) {
+    super(config, url, spoiler);
+    const customWebsites = CustomWebsite.findAllByGuild(config.id);
     for (const website of customWebsites) {
       const match = new RegExp(
         `https?://(?:www\\.)?(${escapeRe(website.domain)})/(.+)`,
@@ -793,11 +793,11 @@ export class CustomLink extends WebsiteLink {
     }
   }
 
-  static ifValid(guild: Guild, url: string, spoiler = false): CustomLink | null {
-    if (CustomWebsite.findAllByGuild(guild.id).length === 0) {
+  static ifValid(config: WebsiteConfig, url: string, spoiler = false): CustomLink | null {
+    if (CustomWebsite.findAllByGuild(config.id).length === 0) {
       return null;
     }
-    const self = new CustomLink(guild, url, spoiler);
+    const self = new CustomLink(config, url, spoiler);
     return self.isValid() ? self : null;
   }
 
