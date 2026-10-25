@@ -1,0 +1,16 @@
+﻿services:
+  - type: worker
+    name: fixtweetbot-ts
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /data/data.sqlite
+    disk:
+      name: fixtweetbot_data
+      mountPath: /data
+      sizeGB: 1

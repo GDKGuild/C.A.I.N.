@@ -1,0 +1,9 @@
+﻿node_modules
+dist
+.git
+.env
+bot.err
+bot.log
+bot.pid
+data.sqlite*
+src.zip

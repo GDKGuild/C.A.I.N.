@@ -1,0 +1,20 @@
+﻿app = "fixtweetbot-ts"
+primary_region = "ord"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  DB_PATH = "/data/data.sqlite"
+
+[[mounts]]
+  source = "fixtweetbot_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+
+[processes]
+  app = "node dist/main.js"
