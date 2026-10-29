@@ -24,6 +24,17 @@ export function eventCommandBuilder(): SlashCommandOptionsOnlyBuilder {
     .setContexts([InteractionContextType.Guild])
     .addUserOption((o) =>
       o.setName('user').setDescription(t('event.option.user.description')).setRequired(false),
+    )
+    .addStringOption((o) =>
+      o
+        .setName('action')
+        .setDescription('Pick which dialogue to use')
+        .setRequired(false)
+        .addChoices(
+          { name: 'rape', value: 'rape' },
+          { name: 'molest', value: 'molest' },
+          { name: 'impregnate', value: 'impregnate' },
+        ),
     );
 }
 
@@ -45,10 +56,17 @@ export function pickDialogueKey(context: HealContext): string {
   return keys[Math.floor(Math.random() * keys.length)];
 }
 
+const ACTION_TO_INDEX: Record<string, number> = {
+  rape: 0,
+  molest: 1,
+  impregnate: 2,
+};
+
 export async function eventCommand(client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
   const botName = client.user?.username ?? 'C.A.I.N.';
   const invokerMention = interaction.user.toString();
   const selected = interaction.options.getUser('user');
+  const action = interaction.options.getString('action');
   const context = healContext(selected ? selected.id : null, client.user?.id ?? '');
   const guild = interaction.guildId ? GuildModel.find(interaction.guildId) : null;
   const locale = resolveLocale(guild, interaction.locale);
@@ -66,7 +84,14 @@ export async function eventCommand(client: Client, interaction: ChatInputCommand
     target = selected!.toString();
   }
 
-  const content = t(pickDialogueKey(context), { actor, target }, locale);
+  let dialogueKey: string;
+  if (action && ACTION_TO_INDEX[action] !== undefined) {
+    const keys = DIALOGUE_KEYS[context];
+    dialogueKey = keys[ACTION_TO_INDEX[action]] ?? pickDialogueKey(context);
+  } else {
+    dialogueKey = pickDialogueKey(context);
+  }
+  const content = t(dialogueKey, { actor, target }, locale);
 
   const gif = pickGif(listGifs(GIFS_DIR));
   if (gif) {
