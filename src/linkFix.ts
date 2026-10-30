@@ -321,6 +321,20 @@ async function registerRevertPrompt(originalMessage: Message, allSent: Array<[Me
       : promptVariant(user?.prompt_count ?? 0, user?.keep_always ?? false);
   if (variant === 'skip') return;
 
+  if (variant === 'offer') {
+    const currentCount = guildId ? (member?.prompt_count ?? 0) : (user?.prompt_count ?? 0);
+    const ignoreCount = guildId ? ((member as any)?.ignore_count ?? 0) : ((user as any)?.ignore_count ?? 0);
+    if (currentCount >= KEEP_OFFER_THRESHOLD && ignoreCount >= KEEP_OFFER_THRESHOLD) {
+      if (guildId) {
+        Filter.findOrCreate('members', guildId, { id: originalMessage.author.id, bot: false }).update({ keep_always: true, ignore_count: 0 });
+      } else {
+        User.findOrCreate(originalMessage.author.id).update({ keep_always: true, ignore_count: 0 });
+      }
+      await safeSend(allSent[0][0].reply({ content: t('revert.auto.enabled', {}, locale), flags: MessageFlags.Ephemeral }), { forbidden: true });
+      return;
+    }
+  }
+
   const token = Math.random().toString(36).slice(2, 10);
   const fixed = allSent.map(([msg, groupLinks]) => ({ message: msg, content: revertContent(groupLinks) }));
   const row =
@@ -339,6 +353,16 @@ async function registerRevertPrompt(originalMessage: Message, allSent: Array<[Me
   const timer = setTimeout(() => {
     void prompt.delete().catch(() => {});
     revertRegistry.delete(token);
+    if (!isBot) {
+      if (guildId) {
+        Filter.findOrCreate('members', guildId, { id: originalMessage.author.id, bot: false }).update({
+          ignore_count: ((member as any)?.ignore_count ?? 0) + 1,
+        });
+      } else {
+        const u = User.findOrCreate(originalMessage.author.id);
+        u.update({ ignore_count: ((u as any).ignore_count ?? 0) + 1 });
+      }
+    }
   }, 60_000);
   revertRegistry.set(token, { senderId: originalMessage.author.id, fixed, webhook, timer });
   if (variant === 'prompt' && !isBot) {
@@ -395,9 +419,9 @@ export async function handleRevertInteraction(interaction: MessageComponentInter
     await interaction.reply({ content: t('revert.offer.enabled', {}, locale), flags: MessageFlags.Ephemeral }).catch(() => {});
   } else if (variant === 'offer_no') {
     if (interaction.guildId) {
-      Filter.findOrCreate('members', interaction.guildId, { id: interaction.user.id, bot: false }).update({ prompt_count: 0 });
+      Filter.findOrCreate('members', interaction.guildId, { id: interaction.user.id, bot: false }).update({ prompt_count: 0, ignore_count: 0 });
     } else {
-      User.findOrCreate(interaction.user.id).update({ prompt_count: 0 });
+      User.findOrCreate(interaction.user.id).update({ prompt_count: 0, ignore_count: 0 });
     }
   }
   await safeSend((interaction.message as Message).delete(), { notFound: true, forbidden: true });

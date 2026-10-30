@@ -377,6 +377,7 @@ export interface UserRow {
   dm_fixing: number;
   keep_always: number;
   prompt_count: number;
+  ignore_count?: number;
   [key: string]: unknown;
 }
 
@@ -393,6 +394,7 @@ export class User implements WebsiteConfig {
   dm_fixing: boolean;
   keep_always: boolean;
   prompt_count: number;
+  ignore_count: number;
   twitter!: boolean;
   twitter_tr!: boolean;
   twitter_view!: FxEmbedView;
@@ -447,6 +449,7 @@ export class User implements WebsiteConfig {
     this.dm_fixing = !!row.dm_fixing;
     this.keep_always = !!row.keep_always;
     this.prompt_count = Number(row.prompt_count ?? 0);
+    this.ignore_count = Number(row.ignore_count ?? 0);
     Object.assign(this, websiteFields(row as unknown as Record<string, unknown>));
   }
 
@@ -508,6 +511,7 @@ export class Filter {
   bot: boolean;
   keep_always: boolean;
   prompt_count: number;
+  ignore_count: number;
 
   constructor(table: FilterTable, row: FilterRow) {
     this.table = table;
@@ -518,6 +522,7 @@ export class Filter {
     this.bot = !!row['bot'];
     this.keep_always = !!row['keep_always'];
     this.prompt_count = Number(row['prompt_count'] ?? 0);
+    this.ignore_count = Number(row['ignore_count'] ?? 0);
   }
 
   static find(
@@ -578,7 +583,7 @@ export class Filter {
     }
   }
 
-  update(fields: Partial<{ on_deny_list: boolean; on_allow_list: boolean; bot: boolean; keep_always: boolean; prompt_count: number }>): void {
+  update(fields: Partial<{ on_deny_list: boolean; on_allow_list: boolean; bot: boolean; keep_always: boolean; prompt_count: number; ignore_count: number }>): void {
     const idCol = this.table === 'members' ? 'user_id' : 'id';
     const wrote = updateRow(
       this.table,
@@ -921,6 +926,7 @@ export function initDb(): void {
       dm_fixing INTEGER NOT NULL DEFAULT 1,
       keep_always INTEGER NOT NULL DEFAULT 0,
       prompt_count INTEGER NOT NULL DEFAULT 0,
+      ignore_count INTEGER NOT NULL DEFAULT 0,
       ${WEBSITE_COLS_SQL}
     );
     CREATE TABLE IF NOT EXISTS text_channels (
@@ -937,7 +943,8 @@ export function initDb(): void {
       on_deny_list INTEGER NOT NULL DEFAULT 0,
       on_allow_list INTEGER NOT NULL DEFAULT 0,
       prompt_count INTEGER NOT NULL DEFAULT 0,
-      keep_always INTEGER NOT NULL DEFAULT 0
+      keep_always INTEGER NOT NULL DEFAULT 0,
+      ignore_count INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS roles (
       id TEXT PRIMARY KEY,
@@ -998,5 +1005,12 @@ export function initDb(): void {
   }
   if (!memberCols.some((c) => c.name === 'keep_always')) {
     db.exec(`ALTER TABLE members ADD COLUMN keep_always INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!memberCols.some((c) => c.name === 'ignore_count')) {
+    db.exec(`ALTER TABLE members ADD COLUMN ignore_count INTEGER NOT NULL DEFAULT 0`);
+  }
+  const userCols = db.prepare('PRAGMA table_info(users)').all() as Array<{ name: string }>;
+  if (!userCols.some((c) => c.name === 'ignore_count')) {
+    db.exec(`ALTER TABLE users ADD COLUMN ignore_count INTEGER NOT NULL DEFAULT 0`);
   }
 }
