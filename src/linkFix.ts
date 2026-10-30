@@ -21,6 +21,7 @@ import { type EmbeddableUrl } from './markdown';
 import { websites, type WebsiteLink } from './websites';
 import { groupItems, safeSend } from './utils';
 import { t, resolveLocale } from './i18n';
+import { KEEP_IGNORE_THRESHOLD, KEEP_PROMPT_THRESHOLD } from './config';
 
 export type GuildChannel = TextChannel | NewsChannel | ThreadChannel;
 
@@ -290,7 +291,7 @@ interface RevertEntry {
 const revertRegistry = new Map<string, RevertEntry>();
 const REVERT_PREFIX = 'fixer_revert_';
 
-export const KEEP_OFFER_THRESHOLD = 5;
+export const KEEP_OFFER_THRESHOLD = KEEP_PROMPT_THRESHOLD;
 export type PromptVariant = 'skip' | 'offer' | 'prompt';
 
 export function promptVariant(count: number, keepAlways: boolean): PromptVariant {
@@ -324,7 +325,7 @@ async function registerRevertPrompt(originalMessage: Message, allSent: Array<[Me
   if (variant === 'offer') {
     const currentCount = guildId ? (member?.prompt_count ?? 0) : (user?.prompt_count ?? 0);
     const ignoreCount = guildId ? ((member as any)?.ignore_count ?? 0) : ((user as any)?.ignore_count ?? 0);
-    if (currentCount >= KEEP_OFFER_THRESHOLD && ignoreCount >= KEEP_OFFER_THRESHOLD) {
+    if (currentCount >= KEEP_PROMPT_THRESHOLD && ignoreCount >= KEEP_IGNORE_THRESHOLD) {
       if (guildId) {
         Filter.findOrCreate('members', guildId, { id: originalMessage.author.id, bot: false }).update({ keep_always: true, ignore_count: 0 });
       } else {

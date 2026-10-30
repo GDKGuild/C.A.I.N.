@@ -23,3 +23,6 @@ export const BOT_OWNER_IDS: Set<string> = new Set(
     .map((s) => s.trim())
     .filter(Boolean),
 );
+
+export const KEEP_PROMPT_THRESHOLD: number = parseInt(process.env.KEEP_PROMPT_THRESHOLD ?? '5', 10);
+export const KEEP_IGNORE_THRESHOLD: number = parseInt(process.env.KEEP_IGNORE_THRESHOLD ?? '5', 10);
