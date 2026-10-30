@@ -797,6 +797,38 @@ export class FixerSelection {
 
 export type FixerManagerType = 'member' | 'role';
 
+export interface MysteryExclusionRow {
+  username: string;
+}
+
+export class MysteryExclusion {
+  static isExcluded(username: string): boolean {
+    if (!username) return false;
+    const row = db.prepare('SELECT username FROM mystery_exclusions WHERE username = ?').get(username.toLowerCase()) as MysteryExclusionRow | undefined;
+    return !!row;
+  }
+
+  static add(username: string): void {
+    const u = username.toLowerCase();
+    db.prepare('INSERT OR IGNORE INTO mystery_exclusions (username) VALUES (?)').run(u);
+  }
+
+  static remove(username: string): void {
+    const u = username.toLowerCase();
+    db.prepare('DELETE FROM mystery_exclusions WHERE username = ?').run(u);
+  }
+
+  static toggle(username: string): boolean {
+    const u = username.toLowerCase();
+    if (MysteryExclusion.isExcluded(u)) {
+      MysteryExclusion.remove(u);
+      return false;
+    }
+    MysteryExclusion.add(u);
+    return true;
+  }
+}
+
 export interface FixerManagerRow {
   id: number;
   guild_id: string;
@@ -938,6 +970,9 @@ export function initDb(): void {
       website TEXT NOT NULL,
       fix_domain TEXT NOT NULL,
       UNIQUE (guild_id, website)
+    );
+    CREATE TABLE IF NOT EXISTS mystery_exclusions (
+      username TEXT PRIMARY KEY
     );
     CREATE INDEX IF NOT EXISTS idx_members_user ON members (guild_id, user_id);
     CREATE INDEX IF NOT EXISTS idx_filters_guild ON text_channels (guild_id);

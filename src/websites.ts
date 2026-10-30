@@ -1,4 +1,4 @@
-import { CustomWebsite, FixerSelection, type WebsiteConfig } from './db';
+import { CustomWebsite, FixerSelection, MysteryExclusion, type WebsiteConfig } from './db';
 import { Fixer, getFixers, nextFixerIndex, shouldUseMysteryFixer } from './fixers';
 
 export function escapeRe(s: string): string {
@@ -372,6 +372,11 @@ export class TwitterLink extends GenericWebsiteLink {
 
   async getFixedUrl(): Promise<[string | null, string | null]> {
     const [fixedUrl, fixedLabel] = await super.getFixedUrl();
+    const groups = this.match?.groups ?? {};
+    const username = groups['username'] ? String(groups['username']).toLowerCase() : null;
+    if (username && MysteryExclusion.isExcluded(username)) {
+      return [fixedUrl, fixedLabel];
+    }
     if (this.fixerOverride === null && shouldUseMysteryFixer(Math.random())) {
       this.usedMysteryFixer = true;
       const view = (this.config['twitter_view'] as string) ?? 'normal';

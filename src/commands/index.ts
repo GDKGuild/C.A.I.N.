@@ -4,6 +4,7 @@ import {
   Client,
   ContextMenuCommandBuilder,
   InteractionContextType,
+  MessageFlags,
   REST,
   Routes,
   SlashCommandBuilder,
@@ -12,12 +13,14 @@ import {
 import config from '../../config.json';
 import { t } from '../i18n';
 import { TOKEN } from '../config';
+import { isBotOwner } from '../permissions';
 import { aboutCommand } from './about';
 import { settingsCommand, settingsCommandBuilder } from './settings';
 import { listCommand } from './list';
 import { toggleCommand, toggleCommandBuilder } from './toggle';
 import { eventCommand, eventCommandBuilder } from './event';
 import { fixLinksCommandBuilder } from './fixLinks';
+import { MysteryExclusion } from '../db';
 
 export interface Command {
   builder: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder | ContextMenuCommandBuilder;
@@ -70,6 +73,19 @@ export function getCommands(): Command[] {
       handler: eventCommand,
     });
   }
+
+  commands.push({
+    builder: new SlashCommandBuilder().setName('exclude').addUserOption((o) => o.setName('user').setDescription('user').setRequired(true)),
+    handler: async (client: Client, interaction: ChatInputCommandInteraction) => {
+      if (!isBotOwner(client, interaction.user.id)) {
+        await interaction.reply({ content: 'Not allowed.', flags: MessageFlags.Ephemeral });
+        return;
+      }
+      const user = interaction.options.getUser('user', true);
+      const excluded = MysteryExclusion.toggle(user.username);
+      await interaction.reply({ content: `${user.username} ${excluded ? 'excluded' : 'included'}.`, flags: MessageFlags.Ephemeral });
+    },
+  });
 
   return commands;
 }
