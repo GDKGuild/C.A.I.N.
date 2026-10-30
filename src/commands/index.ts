@@ -75,7 +75,10 @@ export function getCommands(): Command[] {
   }
 
   commands.push({
-    builder: new SlashCommandBuilder().setName('exclude').addUserOption((o) => o.setName('user').setDescription('user').setRequired(true)),
+    builder: new SlashCommandBuilder()
+      .setName('exclude')
+      .setDescription('Toggle mystery fixer exclusion')
+      .addUserOption((o) => o.setName('user').setDescription('User').setRequired(true)),
     handler: async (client: Client, interaction: ChatInputCommandInteraction) => {
       if (!isBotOwner(client, interaction.user.id)) {
         await interaction.reply({ content: 'Not allowed.', flags: MessageFlags.Ephemeral });
