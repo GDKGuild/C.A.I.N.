@@ -188,7 +188,7 @@ export async function webhookSend(webhook: Webhook, originalMessage: Message, co
   const options: WebhookMessageCreateOptions = {
     content,
     username: originalMessage.member?.displayName ?? originalMessage.author.displayName,
-    avatarURL: originalMessage.author.displayAvatarURL(),
+    avatarURL: originalMessage.member?.displayAvatarURL() ?? originalMessage.author.displayAvatarURL(),
     flags: silent ? [MessageFlags.SuppressNotifications] : undefined,
   };
   if (originalMessage.channel.isThread()) {
