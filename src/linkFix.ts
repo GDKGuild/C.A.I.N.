@@ -327,11 +327,22 @@ async function registerRevertPrompt(originalMessage: Message, allSent: Array<[Me
     const ignoreCount = guildId ? ((member as any)?.ignore_count ?? 0) : ((user as any)?.ignore_count ?? 0);
     if (currentCount >= KEEP_PROMPT_THRESHOLD && ignoreCount >= KEEP_IGNORE_THRESHOLD) {
       if (guildId) {
-        Filter.findOrCreate('members', guildId, { id: originalMessage.author.id, bot: false }).update({ keep_always: true, ignore_count: 0 });
+        Filter.findOrCreate('members', guildId, { id: originalMessage.author.id, bot: false }).update({ keep_always: true, ignore_count: 0, prompt_count: 0 });
       } else {
-        User.findOrCreate(originalMessage.author.id).update({ keep_always: true, ignore_count: 0 });
+        User.findOrCreate(originalMessage.author.id).update({ keep_always: true, ignore_count: 0, prompt_count: 0 });
       }
-      await safeSend(allSent[0][0].reply({ content: t('revert.auto.enabled', {}, locale), flags: MessageFlags.Ephemeral }), { forbidden: true });
+      const [ok, msg] = await safeSend(
+        allSent[0][0].reply({
+          content: 'Keep Always has been turned on for you automatically. If you want to turn it off, you can use the /toggle command with the keep:false sub-option.',
+          flags: [MessageFlags.Ephemeral],
+        }),
+        { forbidden: true },
+      );
+      if (ok && msg) {
+        setTimeout(() => {
+          void msg.delete().catch(() => {});
+        }, 120_000);
+      }
       return;
     }
   }
