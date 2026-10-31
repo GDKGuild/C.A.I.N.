@@ -352,6 +352,10 @@ export class EmbedEZLink extends GenericWebsiteLink {
   }
 }
 
+let lastMysteryAt = 0;
+let lastMysteryChannelId: string | null = null;
+const MYSTERY_COOLDOWN_MS = 5 * 60 * 1000;
+
 export class TwitterLink extends GenericWebsiteLink {
   static id = 'twitter' as const;
   static hypertextLabel = 'Tweet';
@@ -377,8 +381,18 @@ export class TwitterLink extends GenericWebsiteLink {
     if (username && MysteryExclusion.isExcluded(username)) {
       return [fixedUrl, fixedLabel];
     }
+    const channelId = (this as any).originalMessage?.channelId ?? (this as any).channelId ?? null;
+    const now = Date.now();
+    if (now - lastMysteryAt < MYSTERY_COOLDOWN_MS) {
+      return [fixedUrl, fixedLabel];
+    }
+    if (channelId && lastMysteryChannelId === channelId) {
+      return [fixedUrl, fixedLabel];
+    }
     if (this.fixerOverride === null && shouldUseMysteryFixer(Math.random())) {
       this.usedMysteryFixer = true;
+      lastMysteryAt = now;
+      lastMysteryChannelId = channelId;
       const view = (this.config['twitter_view'] as string) ?? 'normal';
       const subdomain = TwitterLink.subdomains[view] ?? '';
       return [
