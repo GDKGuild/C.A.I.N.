@@ -127,14 +127,46 @@ export async function sendFixedLinks(
   const messagesSent: Array<[Message, WebsiteLink[]]> = [];
   const linksFailed: Array<[string, WebsiteLink[]]> = [];
 
-  const grouped = groupItems(renderedLinks, 2000, '\n', (link) => link.rendered ?? '');
   const webhook = config.reply_as_original_author_replica ? await getOrCreateWebhook(channel, client) : null;
+
+  if (webhook && config.original_message === 'delete') {
+    let reconstructed = originalMessage.content ?? '';
+    const replacements: Array<[string, string]> = [];
+    for (const link of renderedLinks) {
+      const originalUrl = link.url;
+      const fixed = link.rendered ?? null;
+      if (originalUrl && fixed) {
+        replacements.push([originalUrl, fixed]);
+      }
+    }
+    replacements.sort((a, b) => b[0].length - a[0].length);
+    for (const [orig, fix] of replacements) {
+      reconstructed = reconstructed.split(orig).join(fix);
+      reconstructed = reconstructed.split(`<${orig}>`).join(`<${fix}>`);
+    }
+    if (reconstructed.trim().length === 0 && replacements.length > 0) {
+      reconstructed = replacements.map(([, fix]) => fix).join('\n');
+    }
+    const coro = webhookSend(webhook, originalMessage, reconstructed, config.reply_silently, true);
+    const [sent, msg] = await safeSend(coro, {
+      invalidFormBody: 'Embed size exceeds maximum size',
+      forbidden: true,
+    });
+    if (sent && msg) {
+      messagesSent.push([msg, renderedLinks]);
+    } else {
+      linksFailed.push([reconstructed, renderedLinks]);
+    }
+    return [linksFailed, messagesSent];
+  }
+
+  const grouped = groupItems(renderedLinks, 2000, '\n', (link) => link.rendered ?? '');
 
   for (let i = 0; i < grouped.length; i++) {
     const [messageContent, linksInGroup] = grouped[i];
     let coro: Promise<Message>;
     if (webhook) {
-      coro = webhookSend(webhook, originalMessage, messageContent, config.reply_silently);
+      coro = webhookSend(webhook, originalMessage, messageContent, config.reply_silently, false);
     } else if (i === 0 && config.reply_to_message) {
       coro = originalMessage.reply({
         content: messageContent,
@@ -184,15 +216,27 @@ export async function getOrCreateWebhook(channel: GuildChannel, client: Client):
   return ok2 && created ? created : null;
 }
 
-export async function webhookSend(webhook: Webhook, originalMessage: Message, content: string, silent: boolean): Promise<Message> {
+export async function webhookSend(webhook: Webhook, originalMessage: Message, content: string, silent: boolean, forwardFull?: boolean): Promise<Message> {
   const options: WebhookMessageCreateOptions = {
     content,
     username: originalMessage.member?.displayName ?? originalMessage.author.displayName,
     avatarURL: originalMessage.member?.displayAvatarURL() ?? originalMessage.author.displayAvatarURL(),
     flags: silent ? [MessageFlags.SuppressNotifications] : undefined,
+    allowedMentions: { parse: ['users', 'roles', 'everyone'] },
   };
   if (originalMessage.channel.isThread()) {
     options.threadId = originalMessage.channel.id;
+  }
+  if (forwardFull) {
+    if (originalMessage.attachments.size > 0) {
+      options.files = Array.from(originalMessage.attachments.values()).map((a) => ({ attachment: a.url, name: a.name }));
+    }
+    if (originalMessage.stickers.size > 0) {
+      options.stickers = Array.from(originalMessage.stickers.values()).map((s) => s.id);
+    }
+    if (originalMessage.embeds.length > 0) {
+      options.embeds = originalMessage.embeds;
+    }
   }
   return webhook.send(options);
 }
