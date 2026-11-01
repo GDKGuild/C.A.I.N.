@@ -1250,9 +1250,9 @@ class WebhooksSetting extends BaseSetting {
 }
 
 class TrackersSetting extends BaseSetting {
-  name = 'settings.trackers.name';
+  name = 'Enable Tracker Cleaner';
   id = 'remove_trackers';
-  description = 'settings.trackers.description';
+  description = 'Automatically strip common tracking parameters (e.g., utm_*, fbclid, gclid, dclid, msclkid, twclid, igshid) from fixed links.';
   emoji = '🧹';
 
   state: boolean;
@@ -1265,25 +1265,26 @@ class TrackersSetting extends BaseSetting {
   async embed(): Promise<EmbedBuilder> {
     const embed = new EmbedBuilder()
       .setTitle(`${this.emoji} ${t(this.name)}`)
-      .setDescription(t('settings.trackers.content', { state: t(`settings.trackers.state.${boolString(this.state)}`) }));
+      .setDescription(
+        `${this.description}\n\n${t('settings.base_website.state.' + boolString(this.state), { name: this.name, translation: '' })}`,
+      );
     setEmbedFooter(this.bot, embed);
     return embed;
   }
 
   async option(): Promise<StringSelectMenuOptionBuilder> {
     const option = new StringSelectMenuOptionBuilder()
-      .setLabel((this.state ? '🟢 ' : '🔴 ') + t(this.name))
+      .setLabel((this.state ? '🟢 ' : '🔴 ') + this.name)
       .setValue(this.id)
-      .setDescription(t(this.description));
+      .setDescription(this.description);
     if (this.emoji) option.setEmoji(this.emoji);
     return option;
   }
 
   async items(): Promise<Array<RowItem>> {
-    const item = button(
-      this.state ? ButtonStyle.Primary : ButtonStyle.Secondary,
-      t(`settings.trackers.button.${boolString(this.state)}`),
-    ).setCustomId(this.id);
+    const item = button(this.state ? ButtonStyle.Primary : ButtonStyle.Secondary, this.state ? 'Turn off' : 'Turn on').setCustomId(
+      this.id,
+    );
     this.view.register(this.id, (i) => this.action(i));
     return [{ builder: item }];
   }
