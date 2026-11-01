@@ -4,6 +4,7 @@ import { TOKEN } from './config';
 import { handleMessageCreate } from './events/messageCreate';
 import { registerCommands } from './commands';
 import { fixLinksCommand } from './commands/fixLinks';
+import { deleteMessageCommand } from './commands/deleteMessage';
 import { handleSettingsInteraction } from './views/settings';
 import { handleListInteraction, isListInteractionId } from './commands/list';
 import { handleRevertInteraction, isRevertInteractionId } from './linkFix';
@@ -20,7 +21,11 @@ const client = new Client({
 client.on('messageCreate', (message) => handleMessageCreate(client, message));
 client.on('interactionCreate', (interaction) => {
   if (interaction.isMessageContextMenuCommand()) {
-    void fixLinksCommand(client, interaction);
+    if (interaction.commandName === 'fix-links') {
+      void fixLinksCommand(client, interaction);
+    } else if (interaction.commandName === 'delete-message') {
+      void deleteMessageCommand(client, interaction);
+    }
   } else if (interaction.isMessageComponent() || interaction.isModalSubmit()) {
     if (isListInteractionId(interaction.customId)) {
       void handleListInteraction(interaction);

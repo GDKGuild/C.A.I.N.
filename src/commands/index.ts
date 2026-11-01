@@ -20,6 +20,7 @@ import { listCommand } from './list';
 import { toggleCommand, toggleCommandBuilder } from './toggle';
 import { eventCommand, eventCommandBuilder } from './event';
 import { fixLinksCommandBuilder } from './fixLinks';
+import { deleteMessageCommandBuilder } from './deleteMessage';
 import { MysteryExclusion } from '../db';
 
 export interface Command {
@@ -104,6 +105,6 @@ export async function registerCommands(client: Client): Promise<void> {
 
   if (!client.application?.id) return;
   const rest = new REST().setToken(TOKEN);
-  const body = [...commands.map((c) => c.builder.toJSON()), fixLinksCommandBuilder().toJSON()];
+  const body = [...commands.map((c) => c.builder.toJSON()), fixLinksCommandBuilder().toJSON(), deleteMessageCommandBuilder().toJSON()];
   await rest.put(Routes.applicationCommands(client.application.id), { body });
 }
