@@ -234,7 +234,37 @@ export class GenericWebsiteLink extends WebsiteLink {
     const formatted = repl
       .replace(/\{domain\}/g, subdomain + domain)
       .replace(/\{post_path_segments\}/g, postPathSegments);
-    return expandMatch(this.match!, formatted);
+    let url = expandMatch(this.match!, formatted);
+    if ((this.config as any).remove_trackers) {
+      try {
+        const u = new URL(url);
+        const paramsToDelete: string[] = [];
+        u.searchParams.forEach((_, key) => {
+          const k = key.toLowerCase();
+          if (
+            k.startsWith('utm_') ||
+            k === 'fbclid' ||
+            k === 'gclid' ||
+            k === 'dclid' ||
+            k === 'msclkid' ||
+            k === 'twclid' ||
+            k === 'igshid' ||
+            k === 'mc_eid' ||
+            k === 'mc_cid' ||
+            k === 'ref' ||
+            k === 'source' ||
+            k === 'si'
+          ) {
+            paramsToDelete.push(key);
+          }
+        });
+        for (const p of paramsToDelete) {
+          u.searchParams.delete(p);
+        }
+        url = u.toString();
+      } catch {}
+    }
+    return url;
   }
 
   async getFixedUrl(): Promise<[string | null, string | null]> {

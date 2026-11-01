@@ -73,6 +73,7 @@ export interface WebsiteConfig {
   fixer_strategy: FixerStrategy;
   custom_websites: CustomWebsite[];
   custom_fixers: CustomFixer[];
+  remove_trackers?: boolean;
   twitter: boolean;
   twitter_tr: boolean;
   twitter_view: FxEmbedView;
@@ -185,6 +186,7 @@ export interface GuildRow {
   reply_as_original_author_replica: number;
   webhooks: number;
   force_fix: number;
+  remove_trackers?: number;
   twitter: number;
   twitter_tr: number;
   twitter_view: string;
@@ -266,6 +268,7 @@ export class Guild implements WebsiteConfig {
   reply_as_original_author_replica: boolean;
   webhooks: boolean;
   force_fix: boolean;
+  remove_trackers: boolean;
   twitter!: boolean;
   twitter_tr!: boolean;
   twitter_view!: FxEmbedView;
@@ -324,6 +327,7 @@ export class Guild implements WebsiteConfig {
     this.reply_as_original_author_replica = !!row.reply_as_original_author_replica;
     this.webhooks = !!row.webhooks;
     this.force_fix = !!row.force_fix;
+    this.remove_trackers = !!row.remove_trackers;
     Object.assign(this, websiteFields(row as unknown as Record<string, unknown>));
     this.fixer_strategy = row.fixer_strategy as FixerStrategy;
   }
@@ -378,6 +382,7 @@ export interface UserRow {
   keep_always: number;
   prompt_count: number;
   ignore_count?: number;
+  remove_trackers?: number;
   [key: string]: unknown;
 }
 
@@ -395,6 +400,7 @@ export class User implements WebsiteConfig {
   keep_always: boolean;
   prompt_count: number;
   ignore_count: number;
+  remove_trackers: boolean;
   twitter!: boolean;
   twitter_tr!: boolean;
   twitter_view!: FxEmbedView;
@@ -450,6 +456,7 @@ export class User implements WebsiteConfig {
     this.keep_always = !!row.keep_always;
     this.prompt_count = Number(row.prompt_count ?? 0);
     this.ignore_count = Number(row.ignore_count ?? 0);
+    this.remove_trackers = !!row.remove_trackers;
     Object.assign(this, websiteFields(row as unknown as Record<string, unknown>));
   }
 
@@ -910,6 +917,7 @@ export function initDb(): void {
       reply_as_original_author_replica INTEGER NOT NULL DEFAULT 0,
       webhooks INTEGER NOT NULL DEFAULT 0,
       force_fix INTEGER NOT NULL DEFAULT 0,
+      remove_trackers INTEGER NOT NULL DEFAULT 0,
       ${WEBSITE_COLS_SQL},
       fixer_strategy TEXT NOT NULL DEFAULT 'round_robin'
     );
@@ -927,6 +935,7 @@ export function initDb(): void {
       keep_always INTEGER NOT NULL DEFAULT 0,
       prompt_count INTEGER NOT NULL DEFAULT 0,
       ignore_count INTEGER NOT NULL DEFAULT 0,
+      remove_trackers INTEGER NOT NULL DEFAULT 0,
       ${WEBSITE_COLS_SQL}
     );
     CREATE TABLE IF NOT EXISTS text_channels (
@@ -1012,5 +1021,11 @@ export function initDb(): void {
   const userCols = db.prepare('PRAGMA table_info(users)').all() as Array<{ name: string }>;
   if (!userCols.some((c) => c.name === 'ignore_count')) {
     db.exec(`ALTER TABLE users ADD COLUMN ignore_count INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!userCols.some((c) => c.name === 'remove_trackers')) {
+    db.exec(`ALTER TABLE users ADD COLUMN remove_trackers INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!cols.some((c) => c.name === 'remove_trackers')) {
+    db.exec(`ALTER TABLE guilds ADD COLUMN remove_trackers INTEGER NOT NULL DEFAULT 0`);
   }
 }
