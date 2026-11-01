@@ -1252,7 +1252,7 @@ class WebhooksSetting extends BaseSetting {
 class TrackersSetting extends BaseSetting {
   name = 'Enable Tracker Cleaner';
   id = 'remove_trackers';
-  description = 'Automatically strip common tracking parameters (e.g., utm_*, fbclid, gclid, dclid, msclkid, twclid, igshid) from fixed links.';
+  description = 'Strip common tracking parameters from fixed links.';
   emoji = '🧹';
 
   state: boolean;
@@ -1266,7 +1266,7 @@ class TrackersSetting extends BaseSetting {
     const embed = new EmbedBuilder()
       .setTitle(`${this.emoji} ${t(this.name)}`)
       .setDescription(
-        `${this.description}\n\n${t('settings.base_website.state.' + boolString(this.state), { name: this.name, translation: '' })}`,
+        `Automatically strip common tracking parameters (e.g., utm_*, fbclid, gclid, dclid, msclkid, twclid, igshid) from fixed links.\n\n${t('settings.base_website.state.' + boolString(this.state), { name: this.name, translation: '' })}`,
       );
     setEmbedFooter(this.bot, embed);
     return embed;
